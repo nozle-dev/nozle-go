@@ -2,6 +2,7 @@ package nozle
 
 import (
 	"context"
+	"errors"
 	"time"
 )
 
@@ -35,6 +36,7 @@ func (c *Client) captureProvider(ctx context.Context, provider string, p Provide
 	if err := c.Track(ctx, TrackParams{CustomerID: p.CustomerID, SubscriptionID: p.SubscriptionID, Event: p.FeatureCode, Metadata: properties, TransactionID: p.TransactionID, Timestamp: p.Timestamp.UTC().Format("2006-01-02T15:04:05.000Z")}); err != nil {
 		return err
 	}
+	var captureErrors []error
 	for _, cat := range categories {
 		if cat.tokens <= 0 || p.CostMeterCode == "" {
 			continue
@@ -42,20 +44,26 @@ func (c *Client) captureProvider(ctx context.Context, provider string, p Provide
 		ts := float64(p.Timestamp.Unix())
 		_, err := c.TrackCostEvent(ctx, CostEventParams{CostEventID: p.TransactionID + ":" + cat.name, CostMeterCode: p.CostMeterCode, ParentTransactionID: p.TransactionID, RequestID: p.RequestID, OperationKey: cat.name, Properties: map[string]any{"tokens": cat.tokens, "provider": provider, "model": p.Model, "type": cat.name}, Timestamp: &ts})
 		if err != nil {
-			return err
+			captureErrors = append(captureErrors, err)
 		}
 	}
-	return nil
+	return errors.Join(captureErrors...)
 }
 
 // CaptureOpenAIUsage records a completed OpenAI invocation and optional categorized cost events.
 func (c *Client) CaptureOpenAIUsage(ctx context.Context, p ProviderCapture, u OpenAIUsage) error {
-	cached := min(max(u.CachedInputTokens, 0), max(u.PromptTokens, 0))
-	reasoning := min(max(u.ReasoningTokens, 0), max(u.CompletionTokens, 0))
-	return c.captureProvider(ctx, "openai", p, u.PromptTokens, u.CompletionTokens, []tokenCategory{{"input", u.PromptTokens - cached}, {"cached_input", cached}, {"output", u.CompletionTokens - reasoning}, {"reasoning", reasoning}})
+	input := max(u.PromptTokens, 0)
+	output := max(u.CompletionTokens, 0)
+	cached := min(max(u.CachedInputTokens, 0), input)
+	reasoning := min(max(u.ReasoningTokens, 0), output)
+	return c.captureProvider(ctx, "openai", p, input, output, []tokenCategory{{"input", input - cached}, {"cached_input", cached}, {"output", output - reasoning}, {"reasoning", reasoning}})
 }
 
 // CaptureAnthropicUsage records a completed Anthropic invocation and optional categorized cost events.
 func (c *Client) CaptureAnthropicUsage(ctx context.Context, p ProviderCapture, u AnthropicUsage) error {
-	return c.captureProvider(ctx, "anthropic", p, u.InputTokens+u.CachedInputTokens+u.CacheWriteTokens, u.OutputTokens, []tokenCategory{{"input", u.InputTokens}, {"cached_input", u.CachedInputTokens}, {"cache_write", u.CacheWriteTokens}, {"output", u.OutputTokens}})
+	input := max(u.InputTokens, 0)
+	cached := max(u.CachedInputTokens, 0)
+	cacheWrite := max(u.CacheWriteTokens, 0)
+	output := max(u.OutputTokens, 0)
+	return c.captureProvider(ctx, "anthropic", p, input+cached+cacheWrite, output, []tokenCategory{{"input", input}, {"cached_input", cached}, {"cache_write", cacheWrite}, {"output", output}})
 }

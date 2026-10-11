@@ -311,5 +311,8 @@ func (c *Client) TrackCostEvent(ctx context.Context, p CostEventParams) (CostEve
 		b["timestamp"] = *p.Timestamp
 	}
 	err := c.request(ctx, "cost_events.track", "POST", false, "/api/v1/cost-events", b, &out, "")
+	if err == nil {
+		out.Accepted = out.Status == "accepted"
+	}
 	return out, err
 }

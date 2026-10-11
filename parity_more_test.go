@@ -41,7 +41,7 @@ func TestCheckoutEntitySubscriptionsTypedResult(t *testing.T) {
 		w.Write([]byte(`{"entity_subscription_checkout":{"id":"pool-1","type":"completed","status":"succeeded","items":[{"external_entity_id":"e","plan_code":"free"}]}}`))
 	}))
 	defer s.Close()
-	c := nozle.New("sk_test", nozle.WithBaseURL(s.URL))
+	c := nozle.New("sk_test", nozle.WithBaseURL(s.URL), nozle.WithEventsURL(s.URL))
 	out, err := c.CheckoutEntitySubscriptions(context.Background(), "c", []nozle.EntitySubscriptionCheckoutItem{{ExternalEntityID: "e", PlanCode: "free"}}, "", "calendar", "pool-1")
 	if err != nil {
 		t.Fatal(err)
@@ -55,7 +55,7 @@ func TestCancelEntitySubscriptionTypedResult(t *testing.T) {
 		w.Write([]byte(`{"entity_subscription":{"external_entity_id":"e","status":"active"},"subscription_transition":{"operation":"cancel","invoice_id":"inv_1"}}`))
 	}))
 	defer s.Close()
-	c := nozle.New("sk_test", nozle.WithBaseURL(s.URL))
+	c := nozle.New("sk_test", nozle.WithBaseURL(s.URL), nozle.WithEventsURL(s.URL))
 	out, err := c.CancelEntitySubscription(context.Background(), "c", "e", nozle.EntitySubscriptionCancel{IdempotencyKey: "cancel-1"})
 	if err != nil {
 		t.Fatal(err)
@@ -78,7 +78,7 @@ func TestEntitySubscriptionPlansAreTyped(t *testing.T) {
 		w.Write([]byte(`{"entity_subscription":{"external_entity_id":"e","current_plan":{"code":"free","name":"Free","interval":"month","amount_cents":0,"amount_currency":"USD","status":"active"}}}`))
 	}))
 	defer s.Close()
-	c := nozle.New("sk_test", nozle.WithBaseURL(s.URL))
+	c := nozle.New("sk_test", nozle.WithBaseURL(s.URL), nozle.WithEventsURL(s.URL))
 	out, err := c.GetEntitySubscription(context.Background(), "c", "e")
 	if err != nil {
 		t.Fatal(err)

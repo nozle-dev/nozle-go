@@ -18,19 +18,16 @@ const DefaultCoreURL = "https://api.nozle.app/core"
 
 type Option func(*Client)
 
-// WithBaseURL overrides the Engine URL. For local deployments it also sets Core unless WithEventsURL is supplied.
+// WithBaseURL overrides the Engine URL.
 func WithBaseURL(u string) Option {
 	return func(c *Client) {
 		c.baseURL = u
-		if !c.coreExplicit {
-			c.eventsURL = u
-		}
 	}
 }
 
 // WithEventsURL overrides the Core URL.
 func WithEventsURL(u string) Option {
-	return func(c *Client) { c.eventsURL = u; c.coreExplicit = true }
+	return func(c *Client) { c.eventsURL = u }
 }
 func WithTimeout(d time.Duration) Option   { return func(c *Client) { c.timeout = d } }
 func WithDebug(on bool) Option             { return func(c *Client) { c.debug = on } }
@@ -38,7 +35,7 @@ func WithHTTPClient(h *http.Client) Option { return func(c *Client) { c.httpClie
 
 type Client struct {
 	baseURL, eventsURL, apiKey string
-	coreExplicit, debug        bool
+	debug                      bool
 	timeout                    time.Duration
 	httpClient                 *http.Client
 }

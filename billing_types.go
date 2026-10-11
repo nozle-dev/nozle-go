@@ -31,15 +31,17 @@ type SubscriptionOptions struct {
 	Checkout      json.RawMessage   `json:"checkout"`
 }
 type SubscriptionChangePreview struct {
-	QuoteID             string      `json:"quote_id"`
-	TransitionDirection string      `json:"transition_direction"`
-	Timing              string      `json:"timing"`
-	Currency            string      `json:"currency"`
-	CreditAmountCents   json.Number `json:"credit_amount_cents"`
-	DebitAmountCents    json.Number `json:"debit_amount_cents"`
-	NetAmountCents      json.Number `json:"net_amount_cents"`
-	AmountDueNowCents   json.Number `json:"amount_due_now_cents"`
-	EffectiveAt         string      `json:"effective_at"`
+	QuoteID                   string      `json:"quote_id"`
+	TransitionDirection       string      `json:"transition_direction"`
+	Timing                    string      `json:"timing"`
+	Currency                  string      `json:"currency"`
+	CreditAmountCents         json.Number `json:"credit_amount_cents"`
+	DebitAmountCents          json.Number `json:"debit_amount_cents"`
+	NetAmountCents            json.Number `json:"net_amount_cents"`
+	AmountDueNowCents         json.Number `json:"amount_due_now_cents"`
+	AmountDueAtEffectiveCents json.Number `json:"amount_due_at_effective_cents"`
+	EffectiveAt               string      `json:"effective_at"`
+	RenewalAt                 string      `json:"renewal_at"`
 }
 type SubscriptionTransitionParams struct {
 	CustomerID          string `json:"customer_id"`

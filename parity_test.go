@@ -110,7 +110,7 @@ func TestCaptureOpenAIUsesMillisecondTimestamp(t *testing.T) {
 		w.Write([]byte(`{"event":{}}`))
 	}))
 	defer s.Close()
-	c := nozle.New("sk_test", nozle.WithBaseURL(s.URL))
+	c := nozle.New("sk_test", nozle.WithBaseURL(s.URL), nozle.WithEventsURL(s.URL))
 	at := time.Date(2026, 10, 11, 12, 0, 0, 123456789, time.UTC)
 	err := c.CaptureOpenAIUsage(context.Background(), nozle.ProviderCapture{CustomerID: "c", SubscriptionID: "s", FeatureCode: "llm", Model: "test", Timestamp: at}, nozle.OpenAIUsage{PromptTokens: 1, CompletionTokens: 1})
 	if err != nil {
@@ -118,6 +118,22 @@ func TestCaptureOpenAIUsesMillisecondTimestamp(t *testing.T) {
 	}
 	if timestamp != "1791720000.123" {
 		t.Fatalf("timestamp=%q", timestamp)
+	}
+}
+
+func TestCostEventAcceptedResponse(t *testing.T) {
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusAccepted)
+		_, _ = w.Write([]byte(`{"status":"accepted","cost_event_id":"cost-1"}`))
+	}))
+	defer s.Close()
+	c := nozle.New("sk_test", nozle.WithBaseURL(s.URL))
+	out, err := c.TrackCostEvent(context.Background(), nozle.CostEventParams{CostMeterCode: "ai", ExternalCustomerID: "customer", CostEventID: "cost-1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !out.Accepted || out.Status != "accepted" || out.CostEventID != "cost-1" {
+		t.Fatalf("accepted response decoded incorrectly: %+v", out)
 	}
 }
 func TestCancelSubscriptionDecodesNestedResponse(t *testing.T) {

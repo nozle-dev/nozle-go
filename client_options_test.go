@@ -1,0 +1,22 @@
+package nozle
+
+import "testing"
+
+func TestBaseURLDoesNotChangeCoreURL(t *testing.T) {
+	c := New("sk_test", WithBaseURL("http://localhost:8888/engine"))
+	if got := c.endpoint(true); got != DefaultCoreURL {
+		t.Fatalf("Core URL = %q, want %q", got, DefaultCoreURL)
+	}
+}
+
+func TestURLOverridesAreIndependentInEitherOrder(t *testing.T) {
+	for _, opts := range [][]Option{
+		{WithBaseURL("http://localhost:8888/engine"), WithEventsURL("http://localhost:8888/core")},
+		{WithEventsURL("http://localhost:8888/core"), WithBaseURL("http://localhost:8888/engine")},
+	} {
+		c := New("sk_test", opts...)
+		if c.endpoint(false) != "http://localhost:8888/engine" || c.endpoint(true) != "http://localhost:8888/core" {
+			t.Fatalf("URLs = %q, %q", c.endpoint(false), c.endpoint(true))
+		}
+	}
+}

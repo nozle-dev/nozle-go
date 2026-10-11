@@ -1,13 +1,11 @@
 steps:
   - name: "golang:1.22-alpine"
     id: vet
-    dir: nozle-go
     entrypoint: go
     args: ["vet", "./..."]
 
   - name: "golang:1.22-alpine"
     id: test
-    dir: nozle-go
     waitFor: [vet]
     entrypoint: sh
     args:

@@ -167,7 +167,7 @@ func TestClient_Track(t *testing.T) {
 		w.WriteHeader(201)
 	}))
 	defer srv.Close()
-	c := nozle.New("sk_test-key", nozle.WithBaseURL(srv.URL))
+	c := nozle.New("sk_test-key", nozle.WithBaseURL(srv.URL), nozle.WithEventsURL(srv.URL))
 	if err := c.Track(context.Background(), nozle.TrackParams{CustomerID: "cust-1", Event: "api_call", SubscriptionID: "sub-1", TransactionID: "tx-1", Metadata: map[string]any{"endpoint": "/users"}}); err != nil {
 		t.Fatal(err)
 	}
@@ -187,7 +187,7 @@ func TestClient_Track_resolvesSingleSubscription(t *testing.T) {
 		w.WriteHeader(201)
 	}))
 	defer srv.Close()
-	c := nozle.New("sk_test-key", nozle.WithBaseURL(srv.URL))
+	c := nozle.New("sk_test-key", nozle.WithBaseURL(srv.URL), nozle.WithEventsURL(srv.URL))
 	if err := c.Track(context.Background(), nozle.TrackParams{CustomerID: "cust-1", Event: "api_call"}); err != nil {
 		t.Fatal(err)
 	}
@@ -233,7 +233,7 @@ func TestClient_Meter(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := nozle.New("sk_test-key", nozle.WithBaseURL(srv.URL))
+	c := nozle.New("sk_test-key", nozle.WithBaseURL(srv.URL), nozle.WithEventsURL(srv.URL))
 	err := c.Meter(context.Background(), []nozle.MeterEvent{
 		{CustomerID: "cust-1", Event: "api_call", SubscriptionID: "sub-1", TransactionID: "tx-1"},
 		{CustomerID: "cust-2", Event: "api_call", SubscriptionID: "sub-2", TransactionID: "tx-2"},

@@ -7,9 +7,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Changed
-- `Track` now posts to the engine's `POST {baseURL}/api/v1/track` (flat body) instead of
-  `{eventsURL}/api/v1/events`. The engine resolves the customer's subscription itself, so a
-  single base URL serves every call. `WithEventsURL` is deprecated and now defaults to `baseURL`.
+- Added typed checkout, subscription, customer, Entity, credits, usage, Cost Event, margin, and provider capture workflows aligned with the current Node and Python SDKs.
+- `Track` and `Meter` use Core Feature Event routes; Engine and Core URL overrides are independent.
+- Added UUIDv7 transaction and Cost Event ID helpers and structured API errors.
+
+### Fixed
+- Preserved `amount_due_at_effective_cents` and `renewal_at` in signed subscription-change previews.
 
 ## [0.2.0] - 2025-06-20
 

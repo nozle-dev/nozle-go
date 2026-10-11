@@ -1,42 +1,234 @@
 # Nozle Go SDK
 
-Go 1.22+ server SDK for Nozle Engine and Core. Apache 2.0 licensed.
+Server-side Go SDK for Nozle billing, subscriptions, Entities, product credits, usage, Cost Events, margin reporting, and OpenAI/Anthropic usage capture. Requires Go 1.22 or newer.
 
-```bash
+## Install
+
+```sh
 go get github.com/nozle-dev/nozle-go
 ```
 
+The module path is `github.com/nozle-dev/nozle-go`. Public `go get` becomes available when the standalone repository is published. Until then, use a local checkout with a Go module `replace` directive.
+
+## Authentication and setup
+
+Keep a secret `sk_` key on your backend. A `pk_` key may list plans; every protected customer, billing, event, Entity, credit, usage, and margin operation requires `sk_`. `New` rejects an empty key. For browser requests, authenticate the user in your application and derive the Nozle customer ID on your backend. Do not trust a customer ID supplied by the browser.
+
 ```go
-package main
-import (
- "context"
- "log"
- "os"
- nozle "github.com/nozle-dev/nozle-go"
+ctx := context.Background()
+client := nozle.New(os.Getenv("NOZLE_SECRET_KEY"))
+plans, err := client.Plans(ctx)
+if err != nil { return err }
+_ = plans
+```
+
+Import `nozle "github.com/nozle-dev/nozle-go"` and the Go standard library packages used by each snippet. Snippets below assume `ctx` and `client` are defined as above. The [runnable basic example](examples/basic/README.md) reads Engine and Core using environment variables.
+
+The default URLs are Engine `https://api.nozle.app/engine` and Core `https://api.nozle.app/core`. Overrides are independent. For a local stack:
+
+```go
+client := nozle.New(os.Getenv("NOZLE_SECRET_KEY"),
+    nozle.WithBaseURL("http://localhost:8888/engine"),
+    nozle.WithEventsURL("http://localhost:8888/core"),
+    nozle.WithTimeout(15*time.Second),
 )
-func main() {
- c := nozle.New(os.Getenv("NOZLE_SECRET_KEY"))
- result, err := c.CheckUsage(context.Background(), nozle.UsageParams{CustomerID:"workspace_123", FeatureCode:"agent_execution", CreditSystemCode:"ai_credits"})
- if err != nil { log.Fatal(err) }
- log.Println(result.Allowed, result.CreditsRequired)
+```
+
+`WithHTTPClient` accepts an `*http.Client` for custom transports. Every SDK method accepts `context.Context`; cancellation and deadlines propagate to HTTP requests. The default request timeout is 10 seconds. Reuse a client across calls.
+
+## Billing and checkout
+
+`Plans` lists available plans. `Checkout` creates a payment-aware checkout for a customer; use an HTTPS return URL whose origin is permitted by your Nozle deployment. Keep a stable idempotency key for one checkout attempt.
+
+```go
+checkout, err := client.Checkout(ctx, nozle.CheckoutParams{
+    CustomerID: "customer-123",
+    PlanCode: "pro_monthly",
+    ReturnURL: "https://merchant.example/billing/complete",
+    IdempotencyKey: "customer-123-pro-v1",
+})
+if err != nil { return err }
+_ = checkout
+```
+
+The result can be `stripe`, `razorpay`, `hosted`, `processing`, `completed`, or `scheduled`, depending on the payment and plan transition. Handle the returned type and fields; a checkout URL or provider callback alone does not prove fulfillment. Use `CheckoutStatus` for the authoritative status. `CheckoutInvoice` starts collection for an existing invoice; `VerifyCheckout` verifies a Razorpay callback. Scope status and verification to both customer and subscription IDs when recovering a customer checkout:
+
+```go
+scope := nozle.CheckoutScope{CustomerID: "customer-123", SubscriptionID: "subscription-123"}
+status, err := client.CheckoutStatus(ctx, checkout.CheckoutID, scope)
+if err != nil { return err }
+_ = status
+```
+
+`Subscribe` creates a backend subscription. `CancelSubscription` defaults to `end_of_period` when its policy argument is empty; pass `immediate` only when termination now is intended.
+
+```go
+subscription, err := client.Subscribe(ctx, nozle.SubscribeParams{CustomerID: "customer-123", PlanCode: "free"})
+if err != nil { return err }
+cancel, err := client.CancelSubscription(ctx, "customer-123", subscription.SubscriptionID, "end_of_period")
+if err != nil { return err }
+_ = cancel
+```
+
+For subscription self-service, `SubscriptionOptions` returns eligible plans and pending state. `PreviewSubscriptionChange` returns a signed, opaque quote for a plan change. Pass that quote into `Checkout` with the selected subscription. `PreviewSubscriptionTransition` and `ApplySubscriptionTransition` handle cancel, uncancel, and scheduled downgrade flows; `WithdrawPendingSubscriptionChange` targets the exact pending subscription. An end-of-period cancel can carry the preview's exact `EffectiveAt` in `ExpectedEffectiveAt` to reject a changed date.
+
+```go
+preview, err := client.PreviewSubscriptionTransition(ctx, nozle.SubscriptionTransitionParams{
+    CustomerID: "customer-123", SubscriptionID: "subscription-123",
+    Operation: "cancel", Timing: "end_of_period",
+})
+if err != nil { return err }
+result, err := client.ApplySubscriptionTransition(ctx, nozle.SubscriptionTransitionParams{
+    CustomerID: "customer-123", SubscriptionID: "subscription-123",
+    Operation: "cancel", Timing: "end_of_period",
+    ExpectedEffectiveAt: preview.SubscriptionTransition.EffectiveAt,
+}, "cancel-subscription-123-v1")
+if err != nil { return err }
+_ = result
+```
+
+The live [subscription management API reference](https://docs.nozle.dev/api/subscription-management) describes checkout and transition outcomes. A plan-change preview may be rejected when a target is ineligible or the organization has no transition policy.
+
+## Customers and Entities
+
+Customer upserts go to Core; Core derives the organization from the secret key. Entity reads and mutations use Engine. Mutation keys identify one logical change and should be reused with the same payload after an uncertain response.
+
+```go
+customer, err := client.UpsertCustomer(ctx, nozle.Customer{
+    ExternalID: "customer-123", Name: "Acme", Email: "billing@example.com",
+})
+if err != nil { return err }
+entity, err := client.UpsertEntity(ctx, customer.ExternalID, "user-42", nozle.EntityInput{
+    Name: "Asha", Status: "active", Metadata: map[string]any{"team": "support"},
+}, "entity-user-42-v1")
+if err != nil { return err }
+_ = entity
+page, err := client.ListEntities(ctx, customer.ExternalID, nozle.PageOptions{Status: "active", Limit: 50})
+if err != nil { return err }
+_ = page
+```
+
+`GetEntity`, `ActivateEntity`, `SuspendEntity`, and `BulkUpsertEntities` are also available. Entity IDs are limited to 255 UTF-8 bytes. List limits are 1–100; bulk upserts accept 1–500 unique Entity IDs.
+
+Each Entity can have its own subscription. `EnsureEntitySubscription`, `GetEntitySubscription`, and `ListEntitySubscriptions` manage identity and reads. `CheckoutEntitySubscription` and `ChangeEntitySubscriptionPlan` create a payment or plan transition for one Entity. `CheckoutEntitySubscriptions` groups up to 100 Entity plans in one checkout; `CancelEntitySubscription` and `RemoveEntitySubscription` manage its lifecycle.
+
+```go
+group, err := client.CheckoutEntitySubscriptions(ctx, "customer-123", []nozle.EntitySubscriptionCheckoutItem{
+    {ExternalEntityID: "user-42", PlanCode: "pro_monthly"},
+    {ExternalEntityID: "user-43", PlanCode: "max_monthly"},
+}, "https://merchant.example/billing/complete", "anniversary", "entity-basket-v1")
+if err != nil { return err }
+_ = group.Items
+```
+
+## Product credits and usage
+
+`ListCreditSystems` follows Core's active pages. Customer and Entity balance and operation methods return exact `Decimal` strings, including `GetCreditBalance`, `ListCreditBalances`, `ListCreditOperations`, `GetEntityCreditBalance`, `ListEntityCreditBalances`, and `ListEntityCreditOperations`.
+
+```go
+balance, err := client.GetCreditBalance(ctx, "customer-123", "ai_credits")
+if err != nil { return err }
+_ = balance.Available // nozle.Decimal, never converted to float64
+
+transfer, err := client.AllocateCredits(ctx, "customer-123", "user-42", "ai_credits",
+    nozle.Decimal("100.000000000001"), "allocate-user-42-v1")
+if err != nil { return err }
+_ = transfer
+```
+
+`DeallocateCredits` returns eligible credits to the customer pool. Transfer amounts must be positive decimal strings with at most 12 fractional places; allocation and deallocation require idempotency keys.
+
+`CheckUsage` is advisory. `TrackUsage` atomically evaluates and records usage with a required idempotency key. Use a feature with a configured credit rate and an active customer subscription. A successful HTTP response can still contain `Allowed=false` when there are not enough credits; inspect the result before doing the protected work.
+
+```go
+usage := nozle.UsageParams{
+    CustomerID: "customer-123", FeatureCode: "agent_execution",
+    CreditSystemCode: "ai_credits", Properties: map[string]any{"model": "example-model"},
+}
+check, err := client.CheckUsage(ctx, usage)
+if err != nil { return err }
+if !check.Allowed { return fmt.Errorf("insufficient credits") }
+
+tracked, err := client.TrackUsage(ctx, usage, "execution-123")
+if err != nil { return err }
+if !tracked.Allowed { return fmt.Errorf("usage denied: %s", tracked.Reason) }
+```
+
+The legacy wallet adapter `CheckAndDeduct` is separate from product credits and has no idempotency key. Avoid retrying it after an uncertain response. For exact-decimal product credits, use `CheckUsage` and `TrackUsage`.
+
+## Feature Events, Cost Events, and entitlements
+
+`Can` checks an entitlement; `CanWithMetadata` includes a metadata filter. Neither deducts product credits. `Track` sends one Core Feature Event; `Meter` sends an explicit batch of 1–100. Supply a stable transaction ID when coordinating retries or linking Cost Events. If `Track` has no subscription ID, it looks up the customer's single active subscription; an ambiguous customer requires an explicit ID.
+
+```go
+transactionID := nozle.CreateTransactionID()
+err := client.Track(ctx, nozle.TrackParams{
+    CustomerID: "customer-123", SubscriptionID: "subscription-123",
+    Event: "copilot_action", TransactionID: transactionID,
+    Metadata: map[string]any{"mode": "planning"},
+})
+if err != nil { return err }
+
+accepted, err := client.TrackCostEvent(ctx, nozle.CostEventParams{
+    CostEventID: nozle.CreateCostEventID(), CostMeterCode: "ai_tokens",
+    ParentTransactionID: transactionID, RequestID: "provider-request-123",
+    OperationKey: "planning", Properties: map[string]any{"tokens": 900, "type": "output"},
+})
+if err != nil { return err }
+_ = accepted.Accepted
+```
+
+Cost Event acceptance means ingestion accepted the event; rating and settlement occur later. For a standalone cost, provide `ExternalCustomerID` instead of `ParentTransactionID`. Go accepts RFC3339 or Unix seconds in Feature Event timestamps and sends Unix seconds to Core. Reuse a transaction or Cost Event ID for the same logical event.
+
+## OpenAI and Anthropic usage capture
+
+Go accepts usage metadata **after** your provider call. It does not import or wrap a provider client, so it works with whichever Go provider library you use. The methods emit a Feature Event and, when `CostMeterCode` is set, linked Cost Events for non-zero token categories.
+
+```go
+err := client.CaptureOpenAIUsage(ctx, nozle.ProviderCapture{
+    CustomerID: "customer-123", SubscriptionID: "subscription-123",
+    FeatureCode: "llm_tokens", CostMeterCode: "ai_tokens",
+    Model: "example-model", RequestID: "provider-request-123",
+}, nozle.OpenAIUsage{PromptTokens: 150, CachedInputTokens: 20, CompletionTokens: 40})
+if err != nil { return err }
+```
+
+`CaptureAnthropicUsage` takes `AnthropicUsage` with input, cached input, cache write, and output token counts. OpenAI categories are input, cached input, output, and reasoning. Negative counts are clamped to zero. Capture methods return telemetry errors to the caller; if one Cost Event category fails, the others are still attempted. Your provider response has already completed, so decide explicitly how your application reports or retries that telemetry. The SDK does not retry it automatically.
+
+## Margin reporting
+
+`MarginSummary`, `MarginByCustomer`, `MarginByMetric`, `MarginByPlan`, `MarginByModel`, and `MarginTrend` query Engine. They return `json.RawMessage` because report shapes vary by query and configuration.
+
+```go
+summary, err := client.MarginSummary(ctx, nil)
+if err != nil { return err }
+trend, err := client.MarginTrend(ctx, "week", nil)
+if err != nil { return err }
+_, _ = summary, trend
+```
+
+Pass `url.Values` for optional filters. Trend granularity is `hour`, `day`, `week`, or `month`.
+
+## Errors and retries
+
+HTTP failures return `*nozle.APIError` with `StatusCode`, `Operation`, `Method`, `Path`, and redacted response `Details`/`Body`. Local input failures return `*nozle.ValidationError` or `*nozle.AuthenticationError`; network failures return `*nozle.TransportError`. Context cancellation is available on every call.
+
+```go
+var apiErr *nozle.APIError
+if errors.As(err, &apiErr) {
+    log.Printf("Nozle %s returned HTTP %d", apiErr.Operation, apiErr.StatusCode)
 }
 ```
 
-Defaults: Engine `https://api.nozle.app/engine`, Core `https://api.nozle.app/core`, 10-second timeout. For local deployments, use `WithBaseURL` and `WithEventsURL`; `WithHTTPClient` injects a custom HTTP client. Every call accepts a context. The SDK makes one HTTP attempt per call and never retries mutations automatically.
+The SDK makes one HTTP attempt per call and never retries mutations automatically. Reuse the same idempotency key and payload if you deliberately retry after an uncertain response. A new key can create a second operation.
 
-## Workflows
+## Development and examples
 
-- Billing: `Plans`, `Checkout`, `CheckoutInvoice`, `CheckoutStatus`, `VerifyCheckout`, `Subscribe`, `CancelSubscription`, `SubscriptionOptions`, `PreviewSubscriptionChange`, `PreviewSubscriptionTransition`, `ApplySubscriptionTransition`, `WithdrawPendingSubscriptionChange`.
-- Metering: `Track`, `Meter`, `Can`, `CanWithMetadata`, `Consume`, `TrackCostEvent`, and `CreateTransactionID` / `CreateCostEventID` for stable UUIDv7 identifiers.
-- Customers and Entities: `UpsertCustomer`, `GetEntity`, `ListEntities`, `UpsertEntity`, `ActivateEntity`, `SuspendEntity`, `BulkUpsertEntities`, and Entity subscription methods.
-- Credits: `ListCreditSystems`, customer and Entity balance and operation reads, `AllocateCredits`, `DeallocateCredits`, `CheckUsage`, `TrackUsage`.
-- Margin: summary, customer, metric, plan, model, and trend queries.
-- LLM: `CaptureOpenAIUsage` and `CaptureAnthropicUsage` record provider usage metadata and optional categorized Cost Events after a provider response. The SDK does not depend on a specific provider client library.
+- [Runnable basic example](examples/basic/README.md): read Engine and Core, then optionally make an advisory credit check using your configured customer and feature.
+- Live API references: [subscription management](https://docs.nozle.dev/api/subscription-management), [Entity subscriptions](https://docs.nozle.dev/api/entity-subscriptions), [Events](https://docs.nozle.dev/api/events), and [Cost Events](https://docs.nozle.dev/api/cost-events).
 
-Core Feature Event timestamps accept RFC3339 or Unix seconds in the Go API; RFC3339 values are sent as Unix seconds with millisecond precision. Subscription creation and cancellation responses expose the nested `Subscription` and populated convenience fields.
+Run `go test ./...`, `go test -race ./...`, and `go vet ./...`. Compile the example with `go build -o /tmp/nozle-basic ./examples/basic`. The standalone repository's GitHub Actions workflow runs the same checks.
 
-`CheckoutEntitySubscriptions` and `CancelEntitySubscription` return typed results, including grouped checkout items and transition settlement fields. `CheckAndDeduct` is the legacy wallet adapter published in the Node and Python SDKs; use `CheckUsage` and `TrackUsage` for product credits. The legacy wallet call has no idempotency key, so do not retry it after an uncertain response.
+## License
 
-Use a secret `sk_` key on your server. Reuse the same idempotency key and payload after an uncertain mutation. Product-credit amounts use `Decimal` strings. Failed HTTP responses return `*APIError` with status, operation, and redacted details; validation and transport errors have separate types.
-
-See the [Go SDK documentation](https://docs.nozle.dev/sdks/go/installation) for examples when the docs are deployed. Public `go get` becomes available when this standalone repository is published.
+Apache License 2.0. See [LICENSE](LICENSE).
