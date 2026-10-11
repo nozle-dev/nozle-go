@@ -56,12 +56,38 @@ type SubscriptionTransitionParams struct {
 	QuoteID             string `json:"quote_id,omitempty"`
 }
 type SubscriptionTransitionResult struct {
-	SubscriptionTransition json.RawMessage `json:"subscription_transition"`
-	Subscription           json.RawMessage `json:"subscription"`
-	Replayed               bool            `json:"replayed"`
+	SubscriptionTransition SubscriptionTransitionDetails `json:"subscription_transition"`
+	Subscription           json.RawMessage               `json:"subscription"`
+	Replayed               bool                          `json:"replayed"`
 }
 type WithdrawResult struct {
 	Subscription                   json.RawMessage `json:"subscription"`
 	WithdrawnPendingSubscriptionID string          `json:"withdrawn_pending_subscription_id"`
 	Replayed                       bool            `json:"replayed"`
+}
+
+// SubscriptionTransitionDetails preserves quoted and applied settlement fields.
+type SubscriptionTransitionDetails struct {
+	ID                     string      `json:"id"`
+	Replayed               bool        `json:"replayed"`
+	Operation              string      `json:"operation"`
+	Timing                 string      `json:"timing"`
+	BillingAnchor          string      `json:"billing_anchor"`
+	ProrationBehavior      string      `json:"proration_behavior"`
+	CreditAction           string      `json:"credit_action"`
+	RefundMode             string      `json:"refund_mode"`
+	FinalInvoiceAction     string      `json:"final_invoice_action"`
+	EffectiveAt            string      `json:"effective_at"`
+	RenewalAt              string      `json:"renewal_at"`
+	SubscriptionID         string      `json:"subscription_id"`
+	ExternalSubscriptionID string      `json:"external_subscription_id"`
+	PlanCode               string      `json:"plan_code"`
+	Status                 string      `json:"status"`
+	CreditNoteID           string      `json:"credit_note_id"`
+	InvoiceID              string      `json:"invoice_id"`
+	CreditAmountCents      json.Number `json:"credit_amount_cents"`
+	RefundAmountCents      json.Number `json:"refund_amount_cents"`
+	OffsetAmountCents      json.Number `json:"offset_amount_cents"`
+	AmountDueCents         json.Number `json:"amount_due_cents"`
+	Currency               string      `json:"currency"`
 }

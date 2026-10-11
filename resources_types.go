@@ -199,3 +199,30 @@ type EntitySubscriptionCancel struct {
 	FinalInvoiceAction string `json:"final_invoice_action,omitempty"`
 	IdempotencyKey     string `json:"-"`
 }
+
+// EntitySubscriptionCheckoutManyResult is one grouped payment for several Entities.
+type EntitySubscriptionCheckoutManyResult struct {
+	ID           string                                 `json:"id"`
+	Type         string                                 `json:"type"`
+	CheckoutID   string                                 `json:"checkout_id"`
+	KeyID        string                                 `json:"key_id"`
+	OrderID      string                                 `json:"order_id"`
+	Status       string                                 `json:"status"`
+	ClientSecret string                                 `json:"client_secret"`
+	InvoiceID    string                                 `json:"invoice_id"`
+	AmountCents  json.Number                            `json:"amount_cents"`
+	Currency     string                                 `json:"currency"`
+	Replayed     bool                                   `json:"replayed"`
+	ExpiresAt    string                                 `json:"expires_at"`
+	Items        []EntitySubscriptionCheckoutItemResult `json:"items"`
+}
+type EntitySubscriptionCheckoutItemResult struct {
+	ExternalEntityID       string `json:"external_entity_id"`
+	ExternalSubscriptionID string `json:"external_subscription_id"`
+	PlanCode               string `json:"plan_code"`
+	SubscriptionStatus     string `json:"subscription_status"`
+}
+type EntitySubscriptionCancelResult struct {
+	EntitySubscription     EntitySubscription            `json:"entity_subscription"`
+	SubscriptionTransition SubscriptionTransitionDetails `json:"subscription_transition"`
+}

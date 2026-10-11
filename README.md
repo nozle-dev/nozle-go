@@ -26,13 +26,15 @@ Defaults: Engine `https://api.nozle.app/engine`, Core `https://api.nozle.app/cor
 ## Workflows
 
 - Billing: `Plans`, `Checkout`, `CheckoutInvoice`, `CheckoutStatus`, `VerifyCheckout`, `Subscribe`, `CancelSubscription`, `SubscriptionOptions`, `PreviewSubscriptionChange`, `PreviewSubscriptionTransition`, `ApplySubscriptionTransition`, `WithdrawPendingSubscriptionChange`.
-- Metering: `Track`, `Meter`, `Can`, `CanWithMetadata`, `Consume`, `TrackCostEvent`.
+- Metering: `Track`, `Meter`, `Can`, `CanWithMetadata`, `Consume`, `TrackCostEvent`, and `CreateTransactionID` / `CreateCostEventID` for stable UUIDv7 identifiers.
 - Customers and Entities: `UpsertCustomer`, `GetEntity`, `ListEntities`, `UpsertEntity`, `ActivateEntity`, `SuspendEntity`, `BulkUpsertEntities`, and Entity subscription methods.
 - Credits: `ListCreditSystems`, customer and Entity balance and operation reads, `AllocateCredits`, `DeallocateCredits`, `CheckUsage`, `TrackUsage`.
 - Margin: summary, customer, metric, plan, model, and trend queries.
 - LLM: `CaptureOpenAIUsage` and `CaptureAnthropicUsage` record provider usage metadata and optional categorized Cost Events after a provider response. The SDK does not depend on a specific provider client library.
 
 Core Feature Event timestamps accept RFC3339 or Unix seconds in the Go API; RFC3339 values are sent as Unix seconds with millisecond precision. Subscription creation and cancellation responses expose the nested `Subscription` and populated convenience fields.
+
+`CheckoutEntitySubscriptions` and `CancelEntitySubscription` return typed results, including grouped checkout items and transition settlement fields. `CheckAndDeduct` is the legacy wallet adapter published in the Node and Python SDKs; use `CheckUsage` and `TrackUsage` for product credits. The legacy wallet call has no idempotency key, so do not retry it after an uncertain response.
 
 Use a secret `sk_` key on your server. Reuse the same idempotency key and payload after an uncertain mutation. Product-credit amounts use `Decimal` strings. Failed HTTP responses return `*APIError` with status, operation, and redacted details; validation and transport errors have separate types.
 

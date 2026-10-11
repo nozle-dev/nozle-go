@@ -60,8 +60,13 @@ func generateUUID() string {
 	if _, err := rand.Read(b[:]); err != nil {
 		panic(err)
 	}
-	b[6] = (b[6] & 15) | 64
-	b[8] = (b[8] & 63) | 128
+	milliseconds := uint64(time.Now().UnixMilli())
+	for i := 5; i >= 0; i-- {
+		b[i] = byte(milliseconds)
+		milliseconds >>= 8
+	}
+	b[6] = (b[6] & 15) | 0x70
+	b[8] = (b[8] & 63) | 0x80
 	return fmt.Sprintf("%08x-%04x-%04x-%04x-%012x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
 }
 

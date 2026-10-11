@@ -2,7 +2,6 @@ package nozle
 
 import (
 	"context"
-	"encoding/json"
 )
 
 func entitySubscriptionPath(customer, entity string) string {
@@ -57,24 +56,24 @@ func (c *Client) CheckoutEntitySubscription(ctx context.Context, customer, entit
 func (c *Client) ChangeEntitySubscriptionPlan(ctx context.Context, customer, entity string, p EntitySubscriptionChange) (CheckoutResult, error) {
 	return c.entityChange(ctx, "change-plan", customer, entity, p)
 }
-func (c *Client) CheckoutEntitySubscriptions(ctx context.Context, customer string, items []EntitySubscriptionCheckoutItem, returnURL, billingTime, key string) (json.RawMessage, error) {
+func (c *Client) CheckoutEntitySubscriptions(ctx context.Context, customer string, items []EntitySubscriptionCheckoutItem, returnURL, billingTime, key string) (EntitySubscriptionCheckoutManyResult, error) {
 	var out struct {
-		EntitySubscriptionCheckout json.RawMessage `json:"entity_subscription_checkout"`
+		EntitySubscriptionCheckout EntitySubscriptionCheckoutManyResult `json:"entity_subscription_checkout"`
 	}
 	if err := idem("entity_subscriptions.checkout_many", key); err != nil {
-		return nil, err
+		return EntitySubscriptionCheckoutManyResult{}, err
 	}
 	if len(items) < 1 || len(items) > 100 {
-		return nil, &ValidationError{"entity_subscriptions.checkout_many", "requires 1-100 items"}
+		return EntitySubscriptionCheckoutManyResult{}, &ValidationError{"entity_subscriptions.checkout_many", "requires 1-100 items"}
 	}
 	body := map[string]any{"entity_subscription_checkout": map[string]any{"items": items, "return_url": returnURL, "billing_time": billingTime}}
 	err := c.request(ctx, "entity_subscriptions.checkout_many", "POST", true, customerPath(customer)+"/entity-subscriptions/checkout", body, &out, key)
 	return out.EntitySubscriptionCheckout, err
 }
-func (c *Client) CancelEntitySubscription(ctx context.Context, customer, entity string, p EntitySubscriptionCancel) (json.RawMessage, error) {
-	var out json.RawMessage
+func (c *Client) CancelEntitySubscription(ctx context.Context, customer, entity string, p EntitySubscriptionCancel) (EntitySubscriptionCancelResult, error) {
+	var out EntitySubscriptionCancelResult
 	if err := idem("entity_subscriptions.cancel", p.IdempotencyKey); err != nil {
-		return nil, err
+		return EntitySubscriptionCancelResult{}, err
 	}
 	err := c.request(ctx, "entity_subscriptions.cancel", "POST", true, entitySubscriptionPath(customer, entity)+"/cancel", p, &out, p.IdempotencyKey)
 	return out, err
