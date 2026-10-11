@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestCreditTransferPreservesDecimalAndIdempotency(t *testing.T) {
@@ -79,5 +80,57 @@ func TestCanWithMetadataEncodesJSON(t *testing.T) {
 	_, err := c.CanWithMetadata(context.Background(), "customer", "model_access", map[string]any{"model": "large"})
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+func TestSubscribeDecodesNestedSubscription(t *testing.T) {
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"subscription":{"external_id":"sub-local-free","status":"active","plan_code":"free"}}`))
+	}))
+	defer s.Close()
+	c := nozle.New("sk_test", nozle.WithBaseURL(s.URL))
+	got, err := c.Subscribe(context.Background(), nozle.SubscribeParams{CustomerID: "local", PlanCode: "free"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.SubscriptionID != "sub-local-free" || got.Status != "active" || got.Subscription.PlanCode != "free" {
+		t.Fatalf("nested subscription lost: %+v", got)
+	}
+}
+func TestCaptureOpenAIUsesMillisecondTimestamp(t *testing.T) {
+	var timestamp string
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Event struct {
+				Timestamp string `json:"timestamp"`
+			} `json:"event"`
+		}
+		json.NewDecoder(r.Body).Decode(&body)
+		timestamp = body.Event.Timestamp
+		w.Write([]byte(`{"event":{}}`))
+	}))
+	defer s.Close()
+	c := nozle.New("sk_test", nozle.WithBaseURL(s.URL))
+	at := time.Date(2026, 10, 11, 12, 0, 0, 123456789, time.UTC)
+	err := c.CaptureOpenAIUsage(context.Background(), nozle.ProviderCapture{CustomerID: "c", SubscriptionID: "s", FeatureCode: "llm", Model: "test", Timestamp: at}, nozle.OpenAIUsage{PromptTokens: 1, CompletionTokens: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if timestamp != "1791720000.123" {
+		t.Fatalf("timestamp=%q", timestamp)
+	}
+}
+func TestCancelSubscriptionDecodesNestedResponse(t *testing.T) {
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"subscription":{"external_id":"sub-local","status":"active","ending_at":"2026-10-31T18:30:00Z"}}`))
+	}))
+	defer s.Close()
+	c := nozle.New("sk_test", nozle.WithBaseURL(s.URL))
+	out, err := c.CancelSubscription(context.Background(), "local", "sub-local", "end_of_period")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.SubscriptionID != "sub-local" || out.Status != "active" || out.Subscription.EndingAt == "" {
+		t.Fatalf("nested cancellation lost: %+v", out)
 	}
 }

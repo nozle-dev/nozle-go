@@ -93,6 +93,10 @@ func (c *Client) Subscribe(ctx context.Context, p SubscribeParams) (SubscribeRes
 		return out, err
 	}
 	err := c.request(ctx, "subscribe", "POST", false, "/api/v1/subscribe", map[string]any{"customer_id": p.CustomerID, "plan_code": p.PlanCode}, &out, "")
+	if err == nil && out.Subscription.ExternalID != "" {
+		out.SubscriptionID = out.Subscription.ExternalID
+		out.Status = out.Subscription.Status
+	}
 	return out, err
 }
 func (c *Client) CancelSubscription(ctx context.Context, customer, subscription, policy string) (CancelSubscriptionResult, error) {
@@ -105,6 +109,11 @@ func (c *Client) CancelSubscription(ctx context.Context, customer, subscription,
 	}
 	q := url.Values{"customer_id": {customer}, "cancellation_policy": {policy}}
 	err := c.request(ctx, "cancel_subscription", "DELETE", false, query("/api/v1/subscriptions/"+segment(subscription), q), nil, &out, "")
+	if err == nil && out.Subscription.ExternalID != "" {
+		out.SubscriptionID = out.Subscription.ExternalID
+		out.Status = out.Subscription.Status
+		out.EffectiveAt = out.Subscription.EndingAt
+	}
 	return out, err
 }
 func (c *Client) SubscriptionOptions(ctx context.Context, customer, subscription string) (SubscriptionOptions, error) {

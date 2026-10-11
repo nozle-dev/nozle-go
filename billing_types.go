@@ -19,9 +19,10 @@ type RazorpayVerification struct {
 	RazorpaySignature string `json:"razorpay_signature"`
 }
 type CancelSubscriptionResult struct {
-	SubscriptionID string `json:"subscription_id"`
-	Status         string `json:"status"`
-	EffectiveAt    string `json:"effective_at"`
+	Subscription   BillingSubscription `json:"subscription"`
+	SubscriptionID string              `json:"subscription_id"`
+	Status         string              `json:"status"`
+	EffectiveAt    string              `json:"effective_at"`
 }
 type SubscriptionOptions struct {
 	Subscription  json.RawMessage   `json:"subscription"`

@@ -32,7 +32,7 @@ func (c *Client) captureProvider(ctx context.Context, provider string, p Provide
 	if p.Feature != "" {
 		properties["feature"] = p.Feature
 	}
-	if err := c.Track(ctx, TrackParams{CustomerID: p.CustomerID, SubscriptionID: p.SubscriptionID, Event: p.FeatureCode, Metadata: properties, TransactionID: p.TransactionID, Timestamp: p.Timestamp.Format(time.RFC3339Nano)}); err != nil {
+	if err := c.Track(ctx, TrackParams{CustomerID: p.CustomerID, SubscriptionID: p.SubscriptionID, Event: p.FeatureCode, Metadata: properties, TransactionID: p.TransactionID, Timestamp: p.Timestamp.UTC().Format("2006-01-02T15:04:05.000Z")}); err != nil {
 		return err
 	}
 	for _, cat := range categories {

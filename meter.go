@@ -28,7 +28,11 @@ func (c *Client) Meter(ctx context.Context, events []MeterEvent) error {
 		}
 		event := map[string]any{"transaction_id": id, "external_customer_id": e.CustomerID, "external_subscription_id": e.SubscriptionID, "code": e.Event, "properties": p}
 		if e.Timestamp != "" {
-			event["timestamp"] = e.Timestamp
+			normalized, err := eventTimestamp(e.Timestamp)
+			if err != nil {
+				return err
+			}
+			event["timestamp"] = normalized
 		}
 		payload[i] = event
 	}

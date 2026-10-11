@@ -32,6 +32,8 @@ Defaults: Engine `https://api.nozle.app/engine`, Core `https://api.nozle.app/cor
 - Margin: summary, customer, metric, plan, model, and trend queries.
 - LLM: `CaptureOpenAIUsage` and `CaptureAnthropicUsage` record provider usage metadata and optional categorized Cost Events after a provider response. The SDK does not depend on a specific provider client library.
 
+Core Feature Event timestamps accept RFC3339 or Unix seconds in the Go API; RFC3339 values are sent as Unix seconds with millisecond precision. Subscription creation and cancellation responses expose the nested `Subscription` and populated convenience fields.
+
 Use a secret `sk_` key on your server. Reuse the same idempotency key and payload after an uncertain mutation. Product-credit amounts use `Decimal` strings. Failed HTTP responses return `*APIError` with status, operation, and redacted details; validation and transport errors have separate types.
 
 See the [Go SDK documentation](https://docs.nozle.app/sdks/go/installation) for examples. Public `go get` becomes available when this standalone repository is published.

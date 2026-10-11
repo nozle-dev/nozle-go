@@ -119,9 +119,17 @@ type SubscribeParams struct {
 }
 
 // SubscribeResult is the response from the /api/v1/subscribe endpoint.
+type BillingSubscription struct {
+	ExternalID   string `json:"external_id"`
+	Status       string `json:"status"`
+	PlanCode     string `json:"plan_code"`
+	EndingAt     string `json:"ending_at"`
+	TerminatedAt string `json:"terminated_at"`
+}
 type SubscribeResult struct {
-	SubscriptionID string `json:"subscription_id"`
-	Status         string `json:"status"`
+	Subscription   BillingSubscription `json:"subscription"`
+	SubscriptionID string              `json:"subscription_id"`
+	Status         string              `json:"status"`
 }
 
 // CanEconomics preserves exact decimal estimates returned by Engine.
