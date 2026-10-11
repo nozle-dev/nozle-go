@@ -1,0 +1,30 @@
+package nozle
+import "encoding/json"
+// Decimal is an exact product-credit value, transported as a JSON string.
+type Decimal string
+type Customer struct { ExternalID string `json:"external_id"`; Name string `json:"name,omitempty"`; Email string `json:"email,omitempty"` }
+type Entity struct { ID string `json:"id"`; CustomerID string `json:"customer_id"`; ExternalID string `json:"external_id"`; Name string `json:"name"`; Status string `json:"status"`; Metadata map[string]any `json:"metadata"`; CreatedAt string `json:"created_at"`; UpdatedAt string `json:"updated_at"` }
+type EntityInput struct { ExternalID string `json:"external_id,omitempty"`; Name string `json:"name,omitempty"`; Status string `json:"status"`; Metadata map[string]any `json:"metadata"` }
+type EntityMutation struct { Action string `json:"action"`; Entity Entity `json:"entity"`; Replayed bool `json:"replayed"` }
+type EntityPage struct { CustomerID string `json:"customer_id"`; Entities []Entity `json:"entities"`; NextCursor string `json:"next_cursor"` }
+type EntityBulkResult struct { CustomerID string `json:"customer_id"`; Entities []EntityMutation `json:"entities"`; Counts map[string]int `json:"counts"`; Replayed bool `json:"replayed"` }
+type PageOptions struct { Limit int; Cursor,Status,CreditSystemCode string }
+type CreditSystem struct { ID string `json:"id"`; Code string `json:"code"`; Name string `json:"name"`; Description string `json:"description"`; UnitName string `json:"unit_name"`; Status string `json:"status"`; CreatedAt string `json:"created_at"`; UpdatedAt string `json:"updated_at"` }
+type CreditSource struct { ID string `json:"id"`; Type string `json:"type"`; Scope string `json:"scope"`; Initial Decimal `json:"initial"`; Remaining Decimal `json:"remaining"`; Transferable bool `json:"transferable"`; Returnable bool `json:"returnable"`; Priority int `json:"priority"`; ExpiresAt string `json:"expires_at"` }
+type CreditBalance struct { CustomerID string `json:"customer_id"`; CreditSystem string `json:"credit_system"`; Available Decimal `json:"available"`; AsOf string `json:"as_of"`; Sources []CreditSource `json:"sources"` }
+type CreditBalances struct { CustomerID string `json:"customer_id"`; Balances []CreditBalance `json:"balances"`; AsOf string `json:"as_of"` }
+type EntityCreditBalance struct { CustomerID string `json:"customer_id"`; EntityID string `json:"entity_id"`; CreditSystem string `json:"credit_system"`; EntityAvailable Decimal `json:"entity_available"`; SharedAvailable Decimal `json:"shared_available"`; EffectiveAvailable Decimal `json:"effective_available"`; Consumed Decimal `json:"consumed"`; PoolPolicy string `json:"pool_policy"`; Sources []CreditSource `json:"sources"` }
+type EntityCreditBalances struct { CustomerID string `json:"customer_id"`; EntityID string `json:"entity_id"`; Balances []EntityCreditBalance `json:"balances"` }
+type CreditOperation struct { ID string `json:"id"`; Type string `json:"type"`; Status string `json:"status"`; CreditAmount Decimal `json:"credit_amount"`; MetricAmount Decimal `json:"metric_amount"`; RateMetricAmount Decimal `json:"rate_metric_amount"`; RateCreditAmount Decimal `json:"rate_credit_amount"`; Reason string `json:"reason"`; OccurredAt string `json:"occurred_at"`; SourceAllocations []json.RawMessage `json:"source_allocations"` }
+type CreditOperationPage struct { CustomerID string `json:"customer_id"`; EntityID string `json:"entity_id"`; Operations []CreditOperation `json:"operations"`; NextCursor string `json:"next_cursor"` }
+type CreditTransfer struct { Transferred bool `json:"transferred"`; OperationID string `json:"operation_id"`; Direction string `json:"direction"`; Amount Decimal `json:"amount"`; Available Decimal `json:"available"`; ParentSources []json.RawMessage `json:"parent_sources"`; EntitySources []json.RawMessage `json:"entity_sources"`; Replayed bool `json:"replayed"` }
+type UsageParams struct { CustomerID string; EntityID string; FeatureCode string; CreditSystemCode string; Properties map[string]any; Timestamp string }
+type UsageDeduction struct { SourceType string `json:"source_type"`; SourceScope string `json:"source_scope"`; Amount Decimal `json:"amount"`; Remaining Decimal `json:"remaining"` }
+type UsageResult struct { Advisory bool `json:"advisory"`; Allowed bool `json:"allowed"`; OperationID string `json:"operation_id"`; Reason string `json:"reason"`; MetricAmount Decimal `json:"metric_amount"`; CreditsRequired Decimal `json:"credits_required"`; CreditsConsumed Decimal `json:"credits_consumed"`; Available Decimal `json:"available"`; Remaining Decimal `json:"remaining"`; ProjectedRemaining Decimal `json:"projected_remaining"`; Deductions []UsageDeduction `json:"deductions"`; ProjectedDeductions []UsageDeduction `json:"projected_deductions"` }
+type CostEventParams struct { CostEventID string; CostMeterCode string; ParentTransactionID string; ExternalCustomerID string; RequestID string; OperationKey string; Properties map[string]any; Timestamp *float64 }
+type CostEventResult struct { Accepted bool `json:"accepted"`; CostEventID string `json:"cost_event_id"`; Status string `json:"status"` }
+type EntitySubscription struct { ID string `json:"id"`; ExternalEntityID string `json:"external_entity_id"`; Status string `json:"status"`; PlanCode string `json:"plan_code"`; Details json.RawMessage `json:"details"` }
+type EntitySubscriptionList struct { EntitySubscriptions []EntitySubscription `json:"entity_subscriptions"` }
+type EntitySubscriptionChange struct { PlanCode string; ReturnURL string; BillingTime string; IdempotencyKey string; RegisterMandate *bool }
+type EntitySubscriptionCheckoutItem struct { ExternalEntityID string `json:"external_entity_id"`; PlanCode string `json:"plan_code"` }
+type EntitySubscriptionCancel struct { Timing string `json:"timing,omitempty"`; CreditAction string `json:"credit_action,omitempty"`; RefundMode string `json:"refund_mode,omitempty"`; FinalInvoiceAction string `json:"final_invoice_action,omitempty"`; IdempotencyKey string `json:"-"` }
