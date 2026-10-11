@@ -158,22 +158,42 @@ func TestClient_Can_denied(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestClient_Track(t *testing.T) {
- var got map[string]any
- srv:=httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter,r *http.Request){
-  if r.Method!="POST" || r.URL.Path!="/api/v1/events" { t.Errorf("unexpected %s %s",r.Method,r.URL.Path) }
-  json.NewDecoder(r.Body).Decode(&got);w.WriteHeader(201)
- }));defer srv.Close()
- c:=nozle.New("sk_test-key",nozle.WithBaseURL(srv.URL))
- if err:=c.Track(context.Background(),nozle.TrackParams{CustomerID:"cust-1",Event:"api_call",SubscriptionID:"sub-1",TransactionID:"tx-1",Metadata:map[string]any{"endpoint":"/users"}});err!=nil{t.Fatal(err)}
- e:=got["event"].(map[string]any)
- if e["transaction_id"]!="tx-1"||e["external_subscription_id"]!="sub-1"||e["code"]!="api_call"{t.Fatalf("wrong event: %v",e)}
+	var got map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "POST" || r.URL.Path != "/api/v1/events" {
+			t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
+		}
+		json.NewDecoder(r.Body).Decode(&got)
+		w.WriteHeader(201)
+	}))
+	defer srv.Close()
+	c := nozle.New("sk_test-key", nozle.WithBaseURL(srv.URL))
+	if err := c.Track(context.Background(), nozle.TrackParams{CustomerID: "cust-1", Event: "api_call", SubscriptionID: "sub-1", TransactionID: "tx-1", Metadata: map[string]any{"endpoint": "/users"}}); err != nil {
+		t.Fatal(err)
+	}
+	e := got["event"].(map[string]any)
+	if e["transaction_id"] != "tx-1" || e["external_subscription_id"] != "sub-1" || e["code"] != "api_call" {
+		t.Fatalf("wrong event: %v", e)
+	}
 }
 func TestClient_Track_resolvesSingleSubscription(t *testing.T) {
- calls:=0
- srv:=httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter,r *http.Request){calls++;if r.Method=="GET"{w.Write([]byte(`{"subscriptions":[{"external_id":"sub-1"}]}`));return};w.WriteHeader(201)}));defer srv.Close()
- c:=nozle.New("sk_test-key",nozle.WithBaseURL(srv.URL))
- if err:=c.Track(context.Background(),nozle.TrackParams{CustomerID:"cust-1",Event:"api_call"});err!=nil{t.Fatal(err)}
- if calls!=2{t.Fatalf("want lookup + event, got %d calls",calls)}
+	calls := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		if r.Method == "GET" {
+			w.Write([]byte(`{"subscriptions":[{"external_id":"sub-1"}]}`))
+			return
+		}
+		w.WriteHeader(201)
+	}))
+	defer srv.Close()
+	c := nozle.New("sk_test-key", nozle.WithBaseURL(srv.URL))
+	if err := c.Track(context.Background(), nozle.TrackParams{CustomerID: "cust-1", Event: "api_call"}); err != nil {
+		t.Fatal(err)
+	}
+	if calls != 2 {
+		t.Fatalf("want lookup + event, got %d calls", calls)
+	}
 }
 
 func TestClient_Track_rejectsEmptyCustomerID(t *testing.T) {
@@ -215,8 +235,8 @@ func TestClient_Meter(t *testing.T) {
 
 	c := nozle.New("sk_test-key", nozle.WithBaseURL(srv.URL))
 	err := c.Meter(context.Background(), []nozle.MeterEvent{
-		{CustomerID: "cust-1", Event: "api_call", SubscriptionID:"sub-1", TransactionID: "tx-1"},
-		{CustomerID: "cust-2", Event: "api_call", SubscriptionID:"sub-2", TransactionID: "tx-2"},
+		{CustomerID: "cust-1", Event: "api_call", SubscriptionID: "sub-1", TransactionID: "tx-1"},
+		{CustomerID: "cust-2", Event: "api_call", SubscriptionID: "sub-2", TransactionID: "tx-2"},
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -241,13 +261,13 @@ func TestClient_Meter_rejectsEmptyBatch(t *testing.T) {
 
 func TestClient_Meter_rejectsOversizedBatch(t *testing.T) {
 	c := nozle.New("sk_test-key")
-	events := make([]nozle.MeterEvent, 1001)
+	events := make([]nozle.MeterEvent, 101)
 	for i := range events {
 		events[i] = nozle.MeterEvent{CustomerID: "c", Event: "e"}
 	}
 	err := c.Meter(context.Background(), events)
 	if err == nil {
-		t.Fatal("expected error for batch > 1000")
+		t.Fatal("expected error for batch > 100")
 	}
 }
 

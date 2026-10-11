@@ -26,7 +26,7 @@ Defaults: Engine `https://api.nozle.app/engine`, Core `https://api.nozle.app/cor
 ## Workflows
 
 - Billing: `Plans`, `Checkout`, `CheckoutInvoice`, `CheckoutStatus`, `VerifyCheckout`, `Subscribe`, `CancelSubscription`, `SubscriptionOptions`, `PreviewSubscriptionChange`, `PreviewSubscriptionTransition`, `ApplySubscriptionTransition`, `WithdrawPendingSubscriptionChange`.
-- Metering: `Track`, `Meter`, `Can`, `Consume`, `TrackCostEvent`.
+- Metering: `Track`, `Meter`, `Can`, `CanWithMetadata`, `Consume`, `TrackCostEvent`.
 - Customers and Entities: `UpsertCustomer`, `GetEntity`, `ListEntities`, `UpsertEntity`, `ActivateEntity`, `SuspendEntity`, `BulkUpsertEntities`, and Entity subscription methods.
 - Credits: `ListCreditSystems`, customer and Entity balance and operation reads, `AllocateCredits`, `DeallocateCredits`, `CheckUsage`, `TrackUsage`.
 - Margin: summary, customer, metric, plan, model, and trend queries.

@@ -2,27 +2,25 @@ package nozle
 
 import (
 	"context"
+	"encoding/json"
 	"net/url"
 )
 
-// Can checks whether a customer is allowed to use a feature.
 func (c *Client) Can(ctx context.Context, customerID, feature string) (CanResult, error) {
-	u, err := url.Parse(c.baseURL + "/api/v1/can")
-	if err != nil {
-		return CanResult{}, err
-	}
-	q := u.Query()
-	q.Set("customer_id", customerID)
-	q.Set("feature", feature)
-	u.RawQuery = q.Encode()
+	return c.CanWithMetadata(ctx, customerID, feature, nil)
+}
 
-	resp, err := c.do(ctx, "GET", u.String(), nil)
-	if err != nil {
-		return CanResult{}, err
-	}
+// CanWithMetadata includes feature-specific metadata as a JSON query value.
+func (c *Client) CanWithMetadata(ctx context.Context, customerID, feature string, metadata map[string]any) (CanResult, error) {
 	var out CanResult
-	if err := decodeJSON(resp, &out); err != nil {
-		return CanResult{}, err
+	q := url.Values{"customer_id": {customerID}, "feature": {feature}}
+	if metadata != nil {
+		encoded, err := json.Marshal(metadata)
+		if err != nil {
+			return out, err
+		}
+		q.Set("metadata", string(encoded))
 	}
-	return out, nil
+	err := c.request(ctx, "can", "GET", false, query("/api/v1/can", q), nil, &out, "")
+	return out, err
 }
