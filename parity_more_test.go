@@ -72,3 +72,18 @@ func TestGeneratedIDsUseUUIDv7(t *testing.T) {
 		}
 	}
 }
+
+func TestEntitySubscriptionPlansAreTyped(t *testing.T) {
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"entity_subscription":{"external_entity_id":"e","current_plan":{"code":"free","name":"Free","interval":"month","amount_cents":0,"amount_currency":"USD","status":"active"}}}`))
+	}))
+	defer s.Close()
+	c := nozle.New("sk_test", nozle.WithBaseURL(s.URL))
+	out, err := c.GetEntitySubscription(context.Background(), "c", "e")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.CurrentPlan == nil || out.CurrentPlan.Code != "free" {
+		t.Fatalf("wrong plan: %+v", out.CurrentPlan)
+	}
+}

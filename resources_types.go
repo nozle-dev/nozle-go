@@ -166,17 +166,31 @@ type CostEventResult struct {
 	Status      string `json:"status"`
 }
 type EntitySubscription struct {
-	ExternalCustomerID     string          `json:"external_customer_id"`
-	ExternalEntityID       string          `json:"external_entity_id"`
-	ExternalSubscriptionID string          `json:"external_subscription_id"`
-	Status                 string          `json:"status"`
-	CurrentPlan            json.RawMessage `json:"current_plan"`
-	PendingPlan            json.RawMessage `json:"pending_plan"`
-	BillingTime            string          `json:"billing_time"`
-	CurrentPeriodStart     string          `json:"current_period_start"`
-	CurrentPeriodEnd       string          `json:"current_period_end"`
-	EndingAt               string          `json:"ending_at"`
-	CancelAtPeriodEnd      bool            `json:"cancel_at_period_end"`
+	ExternalCustomerID     string                  `json:"external_customer_id"`
+	ExternalEntityID       string                  `json:"external_entity_id"`
+	ExternalSubscriptionID string                  `json:"external_subscription_id"`
+	Status                 string                  `json:"status"`
+	CurrentPlan            *EntitySubscriptionPlan `json:"current_plan"`
+	PendingPlan            *EntitySubscriptionPlan `json:"pending_plan"`
+	BillingTime            string                  `json:"billing_time"`
+	SubscriptionAt         string                  `json:"subscription_at"`
+	StartedAt              string                  `json:"started_at"`
+	CurrentPeriodStart     string                  `json:"current_period_start"`
+	CurrentPeriodEnd       string                  `json:"current_period_end"`
+	EndingAt               string                  `json:"ending_at"`
+	CanceledAt             string                  `json:"canceled_at"`
+	CancelAtPeriodEnd      bool                    `json:"cancel_at_period_end"`
+	CreatedAt              string                  `json:"created_at"`
+	UpdatedAt              string                  `json:"updated_at"`
+}
+type EntitySubscriptionPlan struct {
+	Code           string      `json:"code"`
+	Name           string      `json:"name"`
+	Interval       string      `json:"interval"`
+	AmountCents    json.Number `json:"amount_cents"`
+	AmountCurrency string      `json:"amount_currency"`
+	Status         string      `json:"status"`
+	EffectiveAt    string      `json:"effective_at"`
 }
 type EntitySubscriptionList struct {
 	EntitySubscriptions []EntitySubscription `json:"entity_subscriptions"`
