@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-10-11
+
 ### Changed
 - Added typed checkout, subscription, customer, Entity, credits, usage, Cost Event, margin, and provider capture workflows aligned with the current Node and Python SDKs.
 - `Track` and `Meter` use Core Feature Event routes; Engine and Core URL overrides are independent.
