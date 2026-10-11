@@ -11,10 +11,11 @@ package main
 import (
  "context"
  "log"
+ "os"
  nozle "github.com/nozle-dev/nozle-go"
 )
 func main() {
- c := nozle.New("sk_your_secret_key")
+ c := nozle.New(os.Getenv("NOZLE_SECRET_KEY"))
  result, err := c.CheckUsage(context.Background(), nozle.UsageParams{CustomerID:"workspace_123", FeatureCode:"agent_execution", CreditSystemCode:"ai_credits"})
  if err != nil { log.Fatal(err) }
  log.Println(result.Allowed, result.CreditsRequired)
@@ -38,4 +39,4 @@ Core Feature Event timestamps accept RFC3339 or Unix seconds in the Go API; RFC3
 
 Use a secret `sk_` key on your server. Reuse the same idempotency key and payload after an uncertain mutation. Product-credit amounts use `Decimal` strings. Failed HTTP responses return `*APIError` with status, operation, and redacted details; validation and transport errors have separate types.
 
-See the [Go SDK documentation](https://docs.nozle.app/sdks/go/installation) for examples. Public `go get` becomes available when this standalone repository is published.
+See the [Go SDK documentation](https://docs.nozle.dev/sdks/go/installation) for examples when the docs are deployed. Public `go get` becomes available when this standalone repository is published.
