@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Added typed checkout, subscription, customer, Entity, credits, usage, Cost Event, margin, and provider capture workflows aligned with the current Node and Python SDKs.
 - `Track` and `Meter` use Core Feature Event routes; Engine and Core URL overrides are independent.
 - Added UUIDv7 transaction and Cost Event ID helpers and structured API errors.
+- Added automatic OpenAI chat-completion and Anthropic message usage capture for completed calls and streams through wrapped provider HTTP clients. The core module remains provider-dependency-free.
 
 ### Fixed
 - Preserved `amount_due_at_effective_cents` and `renewal_at` in signed subscription-change previews.

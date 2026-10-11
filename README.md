@@ -1,6 +1,6 @@
 # Nozle Go SDK
 
-Server-side Go SDK for Nozle billing, subscriptions, Entities, product credits, usage, Cost Events, margin reporting, and OpenAI/Anthropic usage capture. Requires Go 1.22 or newer.
+Typed server-side Go SDK for Nozle billing, subscriptions, Entities, product credits, usage, Cost Events, margin reporting, and OpenAI/Anthropic usage capture. Requires Go 1.22 or newer.
 
 ## Install
 
@@ -8,7 +8,7 @@ Server-side Go SDK for Nozle billing, subscriptions, Entities, product credits, 
 go get github.com/nozle-dev/nozle-go
 ```
 
-The module path is `github.com/nozle-dev/nozle-go`. Public `go get` becomes available when the standalone repository is published. Until then, use a local checkout with a Go module `replace` directive.
+The module path is `github.com/nozle-dev/nozle-go`.
 
 ## Authentication and setup
 
@@ -182,7 +182,22 @@ Cost Event acceptance means ingestion accepted the event; rating and settlement 
 
 ## OpenAI and Anthropic usage capture
 
-Go accepts usage metadata **after** your provider call. It does not import or wrap a provider client, so it works with whichever Go provider library you use. The methods emit a Feature Event and, when `CostMeterCode` is set, linked Cost Events for non-zero token categories.
+For automatic capture, wrap the `*http.Client` used by the OpenAI or Anthropic Go SDK once. Continue calling the provider SDK's normal completion and streaming methods; Nozle reads completed usage and emits a Feature Event plus optional linked Cost Events. The core Nozle module has no provider dependency.
+
+```go
+providerHTTP, err := nozle.WrapOpenAIHTTPClient(&http.Client{}, client, nozle.ProviderWrapOptions{
+    CustomerID: "customer-123", SubscriptionID: "subscription-123",
+    FeatureCode: "llm_tokens", CostMeterCode: "ai_tokens",
+    OnError: func(err error) { log.Printf("Nozle usage tracking: %v", err) },
+})
+if err != nil { return err }
+openaiClient := openai.NewClient(openaiopt.WithHTTPClient(providerHTTP))
+_ = openaiClient
+```
+
+Use `WrapAnthropicHTTPClient` for Anthropic. The OpenAI wrapper requests final usage for streams automatically. Provider responses remain available if telemetry fails; `OnError` receives the failure. See the [official-provider integration example](examples/provider-auto/README.md), whose tests exercise both provider SDKs with completed responses and streams.
+
+For applications using other provider clients or requiring durable queued delivery, pass usage metadata explicitly after the provider call:
 
 ```go
 err := client.CaptureOpenAIUsage(ctx, nozle.ProviderCapture{
@@ -193,7 +208,7 @@ err := client.CaptureOpenAIUsage(ctx, nozle.ProviderCapture{
 if err != nil { return err }
 ```
 
-`CaptureAnthropicUsage` takes `AnthropicUsage` with input, cached input, cache write, and output token counts. OpenAI categories are input, cached input, output, and reasoning. Negative counts are clamped to zero. Capture methods return telemetry errors to the caller; if one Cost Event category fails, the others are still attempted. Your provider response has already completed, so decide explicitly how your application reports or retries that telemetry. The SDK does not retry it automatically.
+`CaptureAnthropicUsage` takes `AnthropicUsage` with input, cached input, cache write, and output token counts. OpenAI categories are input, cached input, output, and reasoning. Negative counts are clamped to zero. Manual capture methods return telemetry errors to the caller; if one Cost Event category fails, the others are still attempted. Use a stable transaction ID and your queue when delivery must be durable. The SDK does not retry telemetry automatically.
 
 ## Margin reporting
 
