@@ -17,6 +17,11 @@ type ConsumeResult struct {
 	Usage   ConsumeUsage `json:"usage"`
 }
 
+// Consume calls the legacy combined entitlement-and-record endpoint.
+// Deprecated: the managed production API does not provide /api/v1/consume.
+// Use Can and Track for separate entitlement checks and event submission, or
+// TrackUsage for atomic product-credit consumption. Can followed by Track is
+// not an atomic quota reservation.
 func (c *Client) Consume(ctx context.Context, p ConsumeParams) (ConsumeResult, error) {
 	var out ConsumeResult
 	b := map[string]any{"customer_id": p.CustomerID, "feature": p.Feature}

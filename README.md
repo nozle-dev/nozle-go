@@ -247,3 +247,11 @@ Run `go test ./...`, `go test -race ./...`, and `go vet ./...`. Compile the exam
 ## License
 
 Apache License 2.0. See [LICENSE](LICENSE).
+
+## Legacy methods unavailable on managed production
+
+`Consume` and `LLM` remain in the Go API for source compatibility, but their legacy server routes are absent from the managed production service and return HTTP 404. Do not use them in a new production integration.
+
+Use `Can` and `Track` for separate entitlement checks and event submission. Those two calls are not an atomic quota reservation. Use `CheckUsage` / `TrackUsage` for the product-credit workflow. For provider usage, use `TrackCostEvent`, `CaptureOpenAIUsage`, or `CaptureAnthropicUsage` with a configured cost meter. Those APIs record usage asynchronously; they do not provide the old synchronous token-price lookup.
+
+Subscription credit grants are materialized asynchronously. Wait for the expected balance before allowing credit-backed activity after subscribing; an active subscription alone does not prove its grant is ready. Entity credit allocation/deallocation requires that feature to be enabled for the organization and credit system.
