@@ -146,7 +146,6 @@ func (c *Client) ListCreditSystems(ctx context.Context) ([]CreditSystem, error) 
 		var out struct {
 			CreditSystems []struct {
 				ID          string `json:"nozle_id"`
-				LegacyID    string `json:"lago_id"` // fallback for older servers
 				Code        string `json:"code"`
 				Name        string `json:"name"`
 				Description string `json:"description"`
@@ -164,7 +163,7 @@ func (c *Client) ListCreditSystems(ctx context.Context) ([]CreditSystem, error) 
 			return nil, err
 		}
 		for _, x := range out.CreditSystems {
-			all = append(all, CreditSystem{firstNonEmpty(x.ID, x.LegacyID), x.Code, x.Name, x.Description, x.UnitName, x.Status, x.CreatedAt, x.UpdatedAt})
+			all = append(all, CreditSystem{x.ID, x.Code, x.Name, x.Description, x.UnitName, x.Status, x.CreatedAt, x.UpdatedAt})
 		}
 		if out.Meta.NextPage == nil {
 			break
@@ -316,11 +315,4 @@ func (c *Client) TrackCostEvent(ctx context.Context, p CostEventParams) (CostEve
 		out.Accepted = out.Status == "accepted"
 	}
 	return out, err
-}
-
-func firstNonEmpty(a, b string) string {
-	if a != "" {
-		return a
-	}
-	return b
 }
