@@ -250,7 +250,7 @@ Apache License 2.0. See [LICENSE](LICENSE).
 
 ## Legacy methods removed
 
-`Consume` and `LLM` were removed in this release. Their server routes (`/api/v1/consume`, `/api/v1/llm`) do not exist on the managed production service, so every call returned HTTP 404.
+`Consume` and `LLM` were removed in v0.9.1. Their server routes (`/api/v1/consume`, `/api/v1/llm`) do not exist on the managed production service, so every call returned HTTP 404.
 
 Use `Can` and `Track` for separate entitlement checks and event submission. Those two calls are not an atomic quota reservation. Use `CheckUsage` / `TrackUsage` for the product-credit workflow. For provider usage, use `TrackCostEvent`, `CaptureOpenAIUsage`, or `CaptureAnthropicUsage` with a configured cost meter. Those APIs record usage asynchronously; they do not provide the old synchronous token-price lookup.
 
