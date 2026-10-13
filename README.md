@@ -1,5 +1,7 @@
 # Nozle Go SDK
 
+Feature Event writes use the Go Engine at `https://api.nozle.app/engine/api/v1/events` (batch: `/events/batch`). Configure `WithBaseURL` for a custom ingestion endpoint. `WithEventsURL` configures Core billing resources and subscription discovery.
+
 Typed server-side Go SDK for Nozle billing, subscriptions, Entities, product credits, usage, Cost Events, margin reporting, and OpenAI/Anthropic usage capture. Requires Go 1.22 or newer.
 
 ## Install
@@ -228,7 +230,7 @@ The legacy wallet adapter `CheckAndDeduct` takes `CustomerID` and `Credits`; `Fe
 
 ## Feature Events, Cost Events, and entitlements
 
-`Can` checks an entitlement; `CanWithMetadata` includes a metadata filter. Neither deducts product credits. `Track` sends one Core Feature Event; `Meter` sends an explicit batch of 1–100. Supply a stable transaction ID when coordinating retries or linking Cost Events. If `Track` has no subscription ID, it looks up the customer's single active subscription; an ambiguous customer requires an explicit ID.
+`Can` checks an entitlement; `CanWithMetadata` includes a metadata filter. Neither deducts product credits. `Track` sends one Feature Event through Engine; `Meter` sends an explicit batch of 1–100. Supply a stable transaction ID when coordinating retries or linking Cost Events. If `Track` has no subscription ID, it looks up the customer's single active subscription; an ambiguous customer requires an explicit ID.
 
 ```go
 transactionID := nozle.CreateTransactionID()
@@ -248,7 +250,7 @@ if err != nil { return err }
 _ = accepted.Accepted
 ```
 
-Cost Event acceptance means ingestion accepted the event; rating and settlement occur later. For a standalone cost, provide `ExternalCustomerID` instead of `ParentTransactionID`. Go accepts RFC3339 or Unix seconds in Feature Event timestamps and sends Unix seconds to Core. Reuse a transaction or Cost Event ID for the same logical event.
+Cost Event acceptance means ingestion accepted the event; rating and settlement occur later. For a standalone cost, provide `ExternalCustomerID` instead of `ParentTransactionID`. Go accepts RFC3339 or Unix seconds in Feature Event timestamps and sends Unix seconds to Engine. Reuse a transaction or Cost Event ID for the same logical event.
 
 ## OpenAI and Anthropic usage capture
 

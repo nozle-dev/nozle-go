@@ -36,7 +36,7 @@ func TestOfficialGoClientsWithAutomaticCapture(t *testing.T) {
 		}
 	}))
 	defer provider.Close()
-	billing := nozle.New("sk_test", nozle.WithEventsURL(billingServer.URL))
+	billing := nozle.New("sk_test", nozle.WithBaseURL(billingServer.URL), nozle.WithEventsURL(billingServer.URL))
 	openaiHTTP, err := nozle.WrapOpenAIHTTPClient(nil, billing, nozle.ProviderWrapOptions{CustomerID: "customer-1", SubscriptionID: "subscription-1"})
 	if err != nil {
 		t.Fatal(err)
@@ -103,7 +103,7 @@ func TestOfficialGoClientStreamsWithAutomaticCapture(t *testing.T) {
 		}
 	}))
 	defer provider.Close()
-	billing := nozle.New("sk_test", nozle.WithEventsURL(billingServer.URL))
+	billing := nozle.New("sk_test", nozle.WithBaseURL(billingServer.URL), nozle.WithEventsURL(billingServer.URL))
 	openaiHTTP, _ := nozle.WrapOpenAIHTTPClient(nil, billing, nozle.ProviderWrapOptions{CustomerID: "customer-1", SubscriptionID: "subscription-1"})
 	openaiClient := openai.NewClient(openaiopt.WithAPIKey("test"), openaiopt.WithBaseURL(provider.URL+"/v1"), openaiopt.WithHTTPClient(openaiHTTP))
 	openaiStream := openaiClient.Chat.Completions.NewStreaming(context.Background(), openai.ChatCompletionNewParams{Model: "test-openai", Messages: []openai.ChatCompletionMessageParamUnion{openai.UserMessage("hi")}})

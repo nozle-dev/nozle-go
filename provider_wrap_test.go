@@ -106,7 +106,7 @@ func TestWrapOpenAIHTTPClientAddsStreamUsageAndCapturesFinalChunk(t *testing.T) 
 		_, _ = w.Write([]byte("data: {\"id\":\"chat-stream\",\"model\":\"test-openai\",\"choices\":[{\"delta\":{\"content\":\"hello\"}}]}\n\ndata: {\"id\":\"chat-stream\",\"model\":\"test-openai\",\"choices\":[],\"usage\":{\"prompt_tokens\":8,\"completion_tokens\":3}}\n\ndata: [DONE]\n\n"))
 	}))
 	defer provider.Close()
-	billing := nozle.New("sk_test", nozle.WithEventsURL(nozleServer.URL))
+	billing := nozle.New("sk_test", nozle.WithBaseURL(nozleServer.URL), nozle.WithEventsURL(nozleServer.URL))
 	client, err := nozle.WrapOpenAIHTTPClient(&http.Client{}, billing, nozle.ProviderWrapOptions{CustomerID: "customer-1", SubscriptionID: "subscription-1"})
 	if err != nil {
 		t.Fatal(err)
@@ -145,7 +145,7 @@ func TestWrapAnthropicHTTPClientCapturesStream(t *testing.T) {
 		_, _ = w.Write([]byte("event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"id\":\"msg-1\",\"model\":\"test-anthropic\",\"usage\":{\"input_tokens\":8,\"cache_read_input_tokens\":1,\"cache_creation_input_tokens\":2}}}\n\nevent: message_delta\ndata: {\"type\":\"message_delta\",\"usage\":{\"output_tokens\":3}}\n\n"))
 	}))
 	defer provider.Close()
-	billing := nozle.New("sk_test", nozle.WithEventsURL(nozleServer.URL))
+	billing := nozle.New("sk_test", nozle.WithBaseURL(nozleServer.URL), nozle.WithEventsURL(nozleServer.URL))
 	client, err := nozle.WrapAnthropicHTTPClient(&http.Client{}, billing, nozle.ProviderWrapOptions{CustomerID: "customer-1", SubscriptionID: "subscription-1"})
 	if err != nil {
 		t.Fatal(err)
@@ -185,7 +185,7 @@ func TestWrapAnthropicHTTPClientCapturesCompletion(t *testing.T) {
 		_, _ = w.Write([]byte(`{"id":"msg-123","model":"test-anthropic","content":[{"type":"text","text":"provider reply"}],"usage":{"input_tokens":8,"cache_read_input_tokens":1,"cache_creation_input_tokens":2,"output_tokens":3}}`))
 	}))
 	defer provider.Close()
-	billing := nozle.New("sk_test", nozle.WithEventsURL(nozleServer.URL))
+	billing := nozle.New("sk_test", nozle.WithBaseURL(nozleServer.URL), nozle.WithEventsURL(nozleServer.URL))
 	client, err := nozle.WrapAnthropicHTTPClient(nil, billing, nozle.ProviderWrapOptions{CustomerID: "customer-1", SubscriptionID: "subscription-1"})
 	if err != nil {
 		t.Fatal(err)
@@ -222,7 +222,7 @@ func TestWrappedProviderFailureDoesNotEmitUsage(t *testing.T) {
 		_, _ = w.Write([]byte(`{"error":"rate_limited"}`))
 	}))
 	defer provider.Close()
-	billing := nozle.New("sk_test", nozle.WithEventsURL(nozleServer.URL))
+	billing := nozle.New("sk_test", nozle.WithBaseURL(nozleServer.URL), nozle.WithEventsURL(nozleServer.URL))
 	client, err := nozle.WrapOpenAIHTTPClient(nil, billing, nozle.ProviderWrapOptions{CustomerID: "customer-1"})
 	if err != nil {
 		t.Fatal(err)
@@ -254,7 +254,7 @@ func TestWrappedTelemetryFailurePreservesProviderResponse(t *testing.T) {
 		_, _ = w.Write([]byte(`{"id":"chat-1","model":"test","usage":{"prompt_tokens":2,"completion_tokens":1},"choices":[{"message":{"content":"answer"}}]}`))
 	}))
 	defer provider.Close()
-	billing := nozle.New("sk_test", nozle.WithEventsURL(nozleServer.URL))
+	billing := nozle.New("sk_test", nozle.WithBaseURL(nozleServer.URL), nozle.WithEventsURL(nozleServer.URL))
 	client, err := nozle.WrapOpenAIHTTPClient(nil, billing, nozle.ProviderWrapOptions{CustomerID: "customer-1", SubscriptionID: "subscription-1", OnError: func(err error) { errorsSeen <- err }})
 	if err != nil {
 		t.Fatal(err)

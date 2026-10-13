@@ -5,7 +5,7 @@ import (
 	"errors"
 )
 
-// Meter sends 1-100 Core events in one batch.
+// Meter sends 1-100 metered events to Engine in one batch.
 func (c *Client) Meter(ctx context.Context, events []MeterEvent) error {
 	if err := validateKey(c.apiKey, "meter"); err != nil {
 		return err
@@ -36,5 +36,5 @@ func (c *Client) Meter(ctx context.Context, events []MeterEvent) error {
 		}
 		payload[i] = event
 	}
-	return c.request(ctx, "meter", "POST", true, "/api/v1/events/batch", map[string]any{"events": payload}, nil, "")
+	return c.request(ctx, "meter", "POST", false, "/api/v1/events/batch", map[string]any{"events": payload}, nil, "")
 }
