@@ -75,11 +75,14 @@ type CheckoutParams struct {
 // CheckoutResult is the response from the /api/v1/checkout endpoint. Type selects
 // which fields are set: "stripe" (ClientSecret), "razorpay" (KeyID, OrderID,
 // AmountCents, Currency, ExpiresAt, and for a mandate CustomerID, Recurring and
-// MandateMaxAmountCents), "hosted" (PaymentURL), "processing", "completed" and
-// "scheduled". Fields that do not apply stay at their zero value.
+// MandateMaxAmountCents), "hosted" (PaymentURL), "processing" (CheckoutID and
+// Status: Razorpay while the order is created, or Stripe when a quoted upgrade is
+// replayed while its webhook is pending), "completed" and "scheduled". Fields that
+// do not apply stay at their zero value.
 type CheckoutResult struct {
 	Type string `json:"type"`
-	// URL is not returned by Nozle, which never issues a Stripe-hosted URL.
+	// URL is not returned by plan and invoice checkout, which never issue a
+	// Stripe-hosted URL (credit top-up purchases do return one as PaymentURL).
 	URL        string `json:"url"`
 	PaymentURL string `json:"payment_url"`
 	CheckoutID string `json:"checkout_id"`

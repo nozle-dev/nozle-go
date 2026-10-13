@@ -60,10 +60,10 @@ _ = checkout
 | `stripe` | Stripe | Send `ClientSecret` (a `cs_` embedded Checkout Session secret) to the browser |
 | `razorpay` | Razorpay | Open the Razorpay modal with `KeyID`, `OrderID`, `AmountCents` and `Currency`, then verify |
 | `hosted` | Razorpay | Redirect the customer to `PaymentURL` (a payment link) |
-| `processing` | Razorpay | Recover with `CheckoutStatus` and `CheckoutID` instead of starting another checkout |
+| `processing` | Razorpay or Stripe | Recover with `CheckoutStatus` and `CheckoutID` instead of starting another checkout. Razorpay returns it while the order is not ready; Stripe returns it when a quoted upgrade is replayed while its webhook is still pending |
 | `completed`, `scheduled` | Either | No payment is due now: credits covered it (`PaymentSource`), or the change takes effect later (`TransitionDirection`, `TransitionPolicy`, `EffectiveAt`) |
 
-**Stripe.** Nozle always creates an embedded Checkout Session. It never returns a Stripe-hosted URL or your Stripe publishable key, so the browser needs the `pk_` key for the Stripe account connected in Nozle. `URL`, `PublishableKey` and `StripeAccount` stay empty.
+**Stripe.** Plan and invoice checkout always create an embedded Checkout Session. They never return a Stripe-hosted URL or your Stripe publishable key, so the browser needs the `pk_` key for the Stripe account connected in Nozle. `URL`, `PublishableKey` and `StripeAccount` stay empty. Credit top-up purchases are different: they return a Stripe-hosted `payment_url` (`checkout.stripe.com`, valid for 24 hours).
 
 ```go
 checkout, err := client.Checkout(ctx, nozle.CheckoutParams{
@@ -79,6 +79,8 @@ if checkout.Type == "stripe" {
     // Embedded Checkout completes. A paid upgrade carries PlanUpgradeIntentID.
 }
 ```
+
+Idempotency keys have two Stripe edge cases today. A new-subscription checkout retried while the subscription is still `incomplete` fails with HTTP 422 `validation_errors` containing `subscription_incomplete`, even with the same key; recover by calling `CheckoutInvoice` with the `InvoiceID` from the first response. An invoice checkout retried with the same key and a different body currently returns HTTP 500, not 409, so keep the body identical for one key.
 
 **Razorpay.** Razorpay supports only INR, and `AmountCents` is in paise. Return the `razorpay` result to the browser, open the modal there, and post the handler's three fields back to your backend. `VerifyCheckout` sends them to Nozle, which checks the signature and fetches the payment from Razorpay; the SDK does not check the signature locally. `CheckoutResult` also decodes `ExpiresAt`, and for a UPI AutoPay mandate (`RegisterMandate: &yes` in `CheckoutParams`) `CustomerID`, `Recurring` and `MandateMaxAmountCents`. Verify and status need an `sk_` key.
 

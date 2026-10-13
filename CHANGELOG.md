@@ -8,10 +8,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [0.9.1] - 2026-10-13
 
+### Breaking
+- **Credit systems read `nozle_id`.** `ListCreditSystems` now takes each credit system's `ID` from the `nozle_id` key and no longer falls back to `lago_id`. Against a server that still sends only the old key, `ID` is empty. Ship this release together with the Nozle Core release that sends `nozle_id`.
+- **`Consume()` and `LLM()` are removed** (see Removed). Code that calls them no longer compiles.
+
 ### Added
 - `CheckoutResult` now decodes `expires_at`, `customer_id`, `recurring`, `mandate_max_amount_cents` and `plan_upgrade_intent_id` (Razorpay orders, payment links and mandates, paid upgrades), and `plan_code`, `payment_source`, `transition_direction` and `transition_policy` (completed and scheduled results).
 - `APIError.Code()` and `APIError.HasCode()` expose the API error code, including the codes listed in `error_details` such as `razorpay_requires_inr`, `payment_provider_required` and `invalid_checkout_signature`.
-- README section covering Stripe and Razorpay checkout side by side.
+- README section covering Stripe and Razorpay checkout side by side, including `processing` results for Stripe and Razorpay, Stripe-hosted credit top-up links, and idempotency edge cases.
 
 ### Changed
 - `VerifyCheckout` rejects a missing `razorpay_order_id`, `razorpay_payment_id` or `razorpay_signature` before sending a request (it already rejected a missing signature).
@@ -21,7 +25,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `CheckoutResult.PendingSubscriptionID` is never returned; use `SubscriptionID`. `URL`, `PublishableKey` and `StripeAccount` are not returned either; use your own Stripe publishable key.
 
 ### Removed
-- `Consume()` and `LLM()` with `ConsumeParams`, `ConsumeResult`, `ConsumeUsage`, `LLMParams` and `LLMResult`. Their routes (`/api/v1/consume`, `/api/v1/llm`) are absent from the managed service and always returned HTTP 404. Use `CheckUsage`/`TrackUsage`, `Can`/`Track`, or the cost-event helpers instead.
+- **Breaking:** `Consume()` and `LLM()` with `ConsumeParams`, `ConsumeResult`, `ConsumeUsage`, `LLMParams` and `LLMResult`. Their routes (`/api/v1/consume`, `/api/v1/llm`) are absent from the managed service and always returned HTTP 404. Use `CheckUsage`/`TrackUsage`, `Can`/`Track`, or the cost-event helpers instead.
 
 ## [0.9.0] - 2026-10-11
 
