@@ -222,7 +222,7 @@ if err != nil { return err }
 if !tracked.Allowed { return fmt.Errorf("usage denied: %s", tracked.Reason) }
 ```
 
-The legacy wallet adapter `CheckAndDeduct` is separate from product credits and has no idempotency key. Avoid retrying it after an uncertain response. For exact-decimal product credits, use `CheckUsage` and `TrackUsage`.
+The legacy wallet adapter `CheckAndDeduct` takes `CustomerID` and `Credits`; `Feature` is deprecated and ignored. It is separate from product credits and has no idempotency key. Avoid retrying it after an uncertain response. For exact-decimal product credits, use `CheckUsage` and `TrackUsage`.
 
 ## Feature Events, Cost Events, and entitlements
 

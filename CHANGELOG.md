@@ -17,6 +17,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `VerifyCheckout` rejects a missing `razorpay_order_id`, `razorpay_payment_id` or `razorpay_signature` before sending a request (it already rejected a missing signature).
 
 ### Deprecated
+- `CheckAndDeductParams.Feature` is ignored: it is no longer required, validated or sent, because the endpoint never used it. Existing code that sets it keeps working.
 - `CheckoutResult.PendingSubscriptionID` is never returned; use `SubscriptionID`. `URL`, `PublishableKey` and `StripeAccount` are not returned either; use your own Stripe publishable key.
 
 ### Removed

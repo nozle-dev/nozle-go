@@ -5,8 +5,9 @@ import "context"
 // CheckAndDeductParams describes a legacy wallet debit. Use TrackUsage for product credits.
 type CheckAndDeductParams struct {
 	CustomerID string
-	Feature    string
-	Credits    float64
+	// Deprecated: ignored. It is not validated or sent; the deduction depends only on CustomerID and Credits.
+	Feature string
+	Credits float64
 }
 type CheckAndDeductResult struct {
 	Allowed   bool    `json:"allowed"`
@@ -19,13 +20,10 @@ func (c *Client) CheckAndDeduct(ctx context.Context, p CheckAndDeductParams) (Ch
 	if err := required("check_and_deduct", "customer_id", p.CustomerID); err != nil {
 		return out, err
 	}
-	if err := required("check_and_deduct", "feature", p.Feature); err != nil {
-		return out, err
-	}
 	if p.Credits <= 0 {
 		return out, &ValidationError{"check_and_deduct", "credits must be positive"}
 	}
-	err := c.request(ctx, "check_and_deduct", "POST", false, "/api/v1/check-and-deduct", map[string]any{"customer_id": p.CustomerID, "feature": p.Feature, "credits": p.Credits}, &out, "")
+	err := c.request(ctx, "check_and_deduct", "POST", false, "/api/v1/check-and-deduct", map[string]any{"customer_id": p.CustomerID, "credits": p.Credits}, &out, "")
 	return out, err
 }
 

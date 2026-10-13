@@ -20,12 +20,22 @@ func TestCheckAndDeductLegacyWallet(t *testing.T) {
 	}))
 	defer s.Close()
 	c := nozle.New("sk_test", nozle.WithBaseURL(s.URL))
-	out, err := c.CheckAndDeduct(context.Background(), nozle.CheckAndDeductParams{CustomerID: "c", Feature: "f", Credits: 1})
-	if err != nil {
-		t.Fatal(err)
+	// Feature is deprecated: an old caller may still set it, a new one omits it. Neither is sent.
+	for _, p := range []nozle.CheckAndDeductParams{{CustomerID: "c", Credits: 1}, {CustomerID: "c", Feature: "f", Credits: 1}} {
+		body = nil
+		out, err := c.CheckAndDeduct(context.Background(), p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !out.Allowed || out.Remaining != 9 || len(body) != 2 || body["customer_id"] != "c" || body["credits"] != float64(1) {
+			t.Fatalf("wrong result/body: %+v %v", out, body)
+		}
 	}
-	if !out.Allowed || out.Remaining != 9 || body["customer_id"] != "c" {
-		t.Fatalf("wrong result/body: %+v %v", out, body)
+	if _, err := c.CheckAndDeduct(context.Background(), nozle.CheckAndDeductParams{Credits: 1}); err == nil {
+		t.Fatal("expected a validation error for a missing customer ID")
+	}
+	if _, err := c.CheckAndDeduct(context.Background(), nozle.CheckAndDeductParams{CustomerID: "c"}); err == nil {
+		t.Fatal("expected a validation error for non-positive credits")
 	}
 }
 func TestCreateIDs(t *testing.T) {
