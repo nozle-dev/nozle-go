@@ -25,7 +25,8 @@ func WithBaseURL(u string) Option {
 	}
 }
 
-// WithEventsURL overrides the Core URL.
+// WithEventsURL overrides the Core billing and subscription discovery URL.
+// Track and Meter use the Engine URL configured by WithBaseURL.
 func WithEventsURL(u string) Option {
 	return func(c *Client) { c.eventsURL = u }
 }

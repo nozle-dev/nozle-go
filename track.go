@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-// Track records a Core metered event. Supply a stable TransactionID when retrying.
+// Track records a metered event through Engine. Supply a stable TransactionID when retrying.
 func (c *Client) Track(ctx context.Context, p TrackParams) error {
 	if err := validateKey(c.apiKey, "track"); err != nil {
 		return err
@@ -53,7 +53,7 @@ func (c *Client) Track(ctx context.Context, p TrackParams) error {
 		}
 		event["timestamp"] = normalized
 	}
-	return c.request(ctx, "track", "POST", true, "/api/v1/events", map[string]any{"event": event}, nil, "")
+	return c.request(ctx, "track", "POST", false, "/api/v1/events", map[string]any{"event": event}, nil, "")
 }
 func generateUUID() string {
 	var b [16]byte
