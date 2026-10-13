@@ -65,6 +65,42 @@ type APIError struct {
 func (e *APIError) Error() string {
 	return fmt.Sprintf("nozle: %s %s returned %d", e.Method, e.Path, e.StatusCode)
 }
+
+// Code returns the top-level error code of the response, for example
+// "payment_provider_required" or "validation_errors". It is empty when the
+// response had none.
+func (e *APIError) Code() string {
+	details, _ := e.Details.(map[string]any)
+	code, _ := details["code"].(string)
+	return code
+}
+
+// HasCode reports whether code is the top-level code or is listed in the
+// response's error_details, where a 422 validation_errors response names
+// specific codes such as "razorpay_requires_inr" or "invalid_checkout_signature".
+func (e *APIError) HasCode(code string) bool {
+	if code == "" {
+		return false
+	}
+	if e.Code() == code {
+		return true
+	}
+	details, _ := e.Details.(map[string]any)
+	listed, _ := details["error_details"].(map[string]any)
+	for _, value := range listed {
+		if value == code {
+			return true
+		}
+		if values, ok := value.([]any); ok {
+			for _, item := range values {
+				if item == code {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
 func AsAPIError(err error, target **APIError) bool { return errors.As(err, target) }
 
 type ValidationError struct{ Operation, Message string }

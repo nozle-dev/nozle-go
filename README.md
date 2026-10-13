@@ -51,14 +51,84 @@ if err != nil { return err }
 _ = checkout
 ```
 
-The result can be `stripe`, `razorpay`, `hosted`, `processing`, `completed`, or `scheduled`, depending on the payment and plan transition. Handle the returned type and fields; a checkout URL or provider callback alone does not prove fulfillment. Use `CheckoutStatus` for the authoritative status. `CheckoutInvoice` starts collection for an existing invoice; `VerifyCheckout` verifies a Razorpay callback. Scope status and verification to both customer and subscription IDs when recovering a customer checkout:
+### Payment providers: Stripe and Razorpay
+
+`Checkout` and `CheckoutInvoice` use the payment provider connected to your organization and assigned to the customer. The result's `Type` tells you what to do next. Branch on it; a checkout URL or provider callback alone does not prove fulfillment.
+
+| `Type` | Provider | Next step |
+| --- | --- | --- |
+| `stripe` | Stripe | Send `ClientSecret` (a `cs_` embedded Checkout Session secret) to the browser |
+| `razorpay` | Razorpay | Open the Razorpay modal with `KeyID`, `OrderID`, `AmountCents` and `Currency`, then verify |
+| `hosted` | Razorpay | Declared in the result types; `POST /checkout` does not return it for Razorpay. Invoice payment URLs and credit top-ups return a `payment_url` (an rzp.io payment link) with no checkout id to poll (the field is `PaymentURL`) |
+| `processing` | Razorpay or Stripe | Recover with `CheckoutStatus` and `CheckoutID` instead of starting another checkout. Razorpay returns it while the order is not ready; Stripe returns it when a quoted upgrade is replayed while its webhook is still pending |
+| `completed`, `scheduled` | Either | No payment is due now: credits covered it (`PaymentSource`), or the change takes effect later (`TransitionDirection`, `TransitionPolicy`, `EffectiveAt`) |
+
+**Stripe.** Plan and invoice checkout always create an embedded Checkout Session. They never return a Stripe-hosted URL or your Stripe publishable key, so the browser needs the `pk_` key for the Stripe account connected in Nozle. Credit top-up purchases are different: they return a Stripe-hosted `payment_url` (`checkout.stripe.com`, valid for 24 hours).
 
 ```go
+checkout, err := client.Checkout(ctx, nozle.CheckoutParams{
+    CustomerID:     "customer-123",
+    PlanCode:       "pro_monthly",
+    ReturnURL:      "https://merchant.example/billing/complete",
+    IdempotencyKey: "customer-123-pro_monthly-v1",
+})
+if err != nil { return err }
+if checkout.Type == "stripe" {
+    // Return checkout.ClientSecret to the browser and mount Stripe Embedded Checkout.
+    // A new subscription has no checkout ID to poll: reload the subscription after
+    // Embedded Checkout completes. A paid upgrade carries PlanUpgradeIntentID.
+}
+```
+
+Idempotency keys have two Stripe edge cases today. A new-subscription checkout retried while the subscription is still `incomplete` fails with HTTP 422 `validation_errors` containing `subscription_incomplete`, even with the same key; recover by calling `CheckoutInvoice` with the `InvoiceID` from the first response. An invoice checkout retried with the same key and a different body currently returns HTTP 500, not 409, so keep the body identical for one key.
+
+**Razorpay.** Razorpay supports only INR, and `AmountCents` is in paise. Return the `razorpay` result to the browser, open the modal there, and post the handler's three fields back to your backend. `VerifyCheckout` sends them to Nozle, which checks the signature and fetches the payment from Razorpay; the SDK does not check the signature locally. `CheckoutResult` also decodes `ExpiresAt`, and for a UPI AutoPay mandate (`RegisterMandate: &yes` in `CheckoutParams`) `CustomerID`, `Recurring` and `MandateMaxAmountCents`. Verify and status need an `sk_` key.
+
+```go
+// Backend: create.
+yes := true
+checkout, err := client.Checkout(ctx, nozle.CheckoutParams{
+    CustomerID:      "customer-123",
+    PlanCode:        "pro_monthly",
+    ReturnURL:       "https://merchant.example/billing/complete",
+    IdempotencyKey:  "customer-123-pro_monthly-v1",
+    RegisterMandate: &yes, // optional: UPI AutoPay
+})
+if err != nil { return err }
+if checkout.Type == "razorpay" {
+    // Browser, after loading https://checkout.razorpay.com/v1/checkout.js:
+    //   new Razorpay({key: KeyID, order_id: OrderID, amount: AmountCents, currency: Currency, handler}).open()
+    // For a mandate also pass customer_id: CustomerID and recurring: "1".
+}
+
+// Backend: verify what the handler returned, then poll until both statuses succeed.
 scope := nozle.CheckoutScope{CustomerID: "customer-123", SubscriptionID: "subscription-123"}
+_, err = client.VerifyCheckout(ctx, checkout.CheckoutID, nozle.RazorpayVerification{
+    RazorpayOrderID:   orderID,
+    RazorpayPaymentID: paymentID,
+    RazorpaySignature: signature,
+}, scope)
+if err != nil { return err }
 status, err := client.CheckoutStatus(ctx, checkout.CheckoutID, scope)
 if err != nil { return err }
-_ = status
+// status.Status: awaiting_payment | processing | succeeded | failed | expired | needs_review
+done := status.Status == "succeeded" && status.FulfillmentStatus == "succeeded"
+_ = done
 ```
+
+Bind each `CheckoutID` to the buyer who started it before you call verify or status. Pass both scope fields to tie a call to one customer and subscription; a status call can also run without a scope, with an `sk_` key. `CheckoutInvoice` starts collection for an existing invoice and returns the same result types.
+
+Provider failures are `*nozle.APIError`. `Code()` is the top-level code, and `HasCode` also matches the codes listed in `error_details`, for example `razorpay_requires_inr`, `payment_provider_required` or `invalid_checkout_signature`.
+
+```go
+_, err := client.Checkout(ctx, nozle.CheckoutParams{CustomerID: "customer-123", PlanCode: "pro_monthly"})
+var apiErr *nozle.APIError
+if nozle.AsAPIError(err, &apiErr) && apiErr.HasCode("razorpay_requires_inr") {
+    // Price the plan in INR for customers who pay through Razorpay.
+}
+```
+
+See the [Stripe](https://docs.nozle.dev/integrations/stripe) and [Razorpay](https://docs.nozle.dev/integrations/razorpay) integration guides for connection setup, webhooks, and limits.
 
 `Subscribe` creates a backend subscription. `CancelSubscription` defaults to `end_of_period` when its policy argument is empty; pass `immediate` only when termination now is intended.
 
@@ -154,7 +224,7 @@ if err != nil { return err }
 if !tracked.Allowed { return fmt.Errorf("usage denied: %s", tracked.Reason) }
 ```
 
-The legacy wallet adapter `CheckAndDeduct` is separate from product credits and has no idempotency key. Avoid retrying it after an uncertain response. For exact-decimal product credits, use `CheckUsage` and `TrackUsage`.
+The legacy wallet adapter `CheckAndDeduct` takes `CustomerID` and `Credits`; `Feature` is deprecated and ignored. It is separate from product credits and has no idempotency key. Avoid retrying it after an uncertain response. For exact-decimal product credits, use `CheckUsage` and `TrackUsage`.
 
 ## Feature Events, Cost Events, and entitlements
 
@@ -248,9 +318,9 @@ Run `go test ./...`, `go test -race ./...`, and `go vet ./...`. Compile the exam
 
 Apache License 2.0. See [LICENSE](LICENSE).
 
-## Legacy methods unavailable on managed production
+## Legacy methods removed
 
-`Consume` and `LLM` remain in the Go API for source compatibility, but their legacy server routes are absent from the managed production service and return HTTP 404. Do not use them in a new production integration.
+`Consume` and `LLM` were removed in v0.9.1. Their server routes (`/api/v1/consume`, `/api/v1/llm`) do not exist on the managed production service, so every call returned HTTP 404.
 
 Use `Can` and `Track` for separate entitlement checks and event submission. Those two calls are not an atomic quota reservation. Use `CheckUsage` / `TrackUsage` for the product-credit workflow. For provider usage, use `TrackCostEvent`, `CaptureOpenAIUsage`, or `CaptureAnthropicUsage` with a configured cost meter. Those APIs record usage asynchronously; they do not provide the old synchronous token-price lookup.
 

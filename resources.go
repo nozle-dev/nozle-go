@@ -145,7 +145,7 @@ func (c *Client) ListCreditSystems(ctx context.Context) ([]CreditSystem, error) 
 		seen[page] = true
 		var out struct {
 			CreditSystems []struct {
-				ID          string `json:"lago_id"`
+				ID          string `json:"nozle_id"`
 				Code        string `json:"code"`
 				Name        string `json:"name"`
 				Description string `json:"description"`
