@@ -248,9 +248,9 @@ Run `go test ./...`, `go test -race ./...`, and `go vet ./...`. Compile the exam
 
 Apache License 2.0. See [LICENSE](LICENSE).
 
-## Legacy methods unavailable on managed production
+## Legacy methods removed
 
-`Consume` and `LLM` remain in the Go API for source compatibility, but their legacy server routes are absent from the managed production service and return HTTP 404. Do not use them in a new production integration.
+`Consume` and `LLM` were removed in this release. Their server routes (`/api/v1/consume`, `/api/v1/llm`) do not exist on the managed production service, so every call returned HTTP 404.
 
 Use `Can` and `Track` for separate entitlement checks and event submission. Those two calls are not an atomic quota reservation. Use `CheckUsage` / `TrackUsage` for the product-credit workflow. For provider usage, use `TrackCostEvent`, `CaptureOpenAIUsage`, or `CaptureAnthropicUsage` with a configured cost meter. Those APIs record usage asynchronously; they do not provide the old synchronous token-price lookup.
 

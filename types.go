@@ -59,22 +59,6 @@ type MeterEvent struct {
 	Timestamp      string
 }
 
-// LLMParams holds the fields for an LLM cost lookup.
-type LLMParams struct {
-	Model        string
-	InputTokens  int
-	OutputTokens int
-	CustomerID   string
-}
-
-// LLMResult is the response from the /api/v1/llm endpoint.
-type LLMResult struct {
-	CostCents       float64 `json:"cost_cents"`
-	InputCostCents  float64 `json:"input_cost_cents"`
-	OutputCostCents float64 `json:"output_cost_cents"`
-	Model           string  `json:"model"`
-}
-
 // CheckoutParams holds the fields for creating a checkout session.
 type CheckoutParams struct {
 	OrganizationID   string // Deprecated: use CustomerID
