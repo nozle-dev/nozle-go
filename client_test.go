@@ -125,11 +125,32 @@ func TestClient_Can(t *testing.T) {
 	if result.Used != 5 {
 		t.Errorf("want used=5, got %d", result.Used)
 	}
-	if result.Limit != 100 {
-		t.Errorf("want limit=100, got %d", result.Limit)
+	if result.Limit == nil || *result.Limit != 100 {
+		t.Errorf("want limit=100, got %v", result.Limit)
 	}
-	if result.Remaining != 95 {
-		t.Errorf("want remaining=95, got %d", result.Remaining)
+	if result.Remaining == nil || *result.Remaining != 95 {
+		t.Errorf("want remaining=95, got %v", result.Remaining)
+	}
+}
+
+// An unlimited feature has no allowance: the API sends null for limit and remaining (docs: guides/entitlements/can-endpoint),
+// and the result keeps that as nil. A plain int read it as 0, which looks like "no allowance left".
+func TestClient_Can_unlimitedFeatureHasNoLimitOrRemaining(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"allowed":true,"reason":"unlimited","used":7,"limit":null,"remaining":null}`))
+	}))
+	defer srv.Close()
+
+	c := nozle.New("sk_test-key", nozle.WithBaseURL(srv.URL))
+	result, err := c.Can(context.Background(), "cust-1", "seats")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !result.Allowed || result.Used != 7 {
+		t.Errorf("want allowed with used=7, got %+v", result)
+	}
+	if result.Limit != nil || result.Remaining != nil {
+		t.Errorf("want nil limit and remaining for an unlimited feature, got limit=%v remaining=%v", result.Limit, result.Remaining)
 	}
 }
 
