@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Breaking
+- **`CanResult.Limit` and `CanResult.Remaining` are `*int`.** The API sends `null` for both on an unlimited feature (docs: `can()` response), and a plain `int` decoded that as `0`, which reads as "no allowance left". They are `nil` when the feature is unlimited and a pointer to the value otherwise. Node.js and Python already report `null`. Code that reads `res.Limit` or `res.Remaining` as an `int` no longer compiles: check `res.Limit != nil` first.
+
 ## [0.9.1] - 2026-10-13
 
 ### Breaking

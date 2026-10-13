@@ -14,11 +14,12 @@ type PingResult struct {
 
 // CanResult is the response from the /api/v1/can endpoint.
 type CanResult struct {
-	Allowed            bool              `json:"allowed"`
-	Reason             string            `json:"reason,omitempty"`
-	Used               int               `json:"used"`
-	Limit              int               `json:"limit"`
-	Remaining          int               `json:"remaining"`
+	Allowed bool   `json:"allowed"`
+	Reason  string `json:"reason,omitempty"`
+	Used    int    `json:"used"`
+	// Limit and Remaining are nil for an unlimited feature (the API sends null), never 0: a zero allowance means none left.
+	Limit              *int              `json:"limit"`
+	Remaining          *int              `json:"remaining"`
 	CostPerUseCents    float64           `json:"cost_per_use_cents"`
 	RevenuePerUseCents float64           `json:"revenue_per_use_cents"`
 	MarginPerUseCents  float64           `json:"margin_per_use_cents"`
