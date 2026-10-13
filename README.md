@@ -51,14 +51,82 @@ if err != nil { return err }
 _ = checkout
 ```
 
-The result can be `stripe`, `razorpay`, `hosted`, `processing`, `completed`, or `scheduled`, depending on the payment and plan transition. Handle the returned type and fields; a checkout URL or provider callback alone does not prove fulfillment. Use `CheckoutStatus` for the authoritative status. `CheckoutInvoice` starts collection for an existing invoice; `VerifyCheckout` verifies a Razorpay callback. Scope status and verification to both customer and subscription IDs when recovering a customer checkout:
+### Payment providers: Stripe and Razorpay
+
+`Checkout` and `CheckoutInvoice` use the payment provider connected to your organization and assigned to the customer. The result's `Type` tells you what to do next. Branch on it; a checkout URL or provider callback alone does not prove fulfillment.
+
+| `Type` | Provider | Next step |
+| --- | --- | --- |
+| `stripe` | Stripe | Send `ClientSecret` (a `cs_` embedded Checkout Session secret) to the browser |
+| `razorpay` | Razorpay | Open the Razorpay modal with `KeyID`, `OrderID`, `AmountCents` and `Currency`, then verify |
+| `hosted` | Razorpay | Redirect the customer to `PaymentURL` (a payment link) |
+| `processing` | Razorpay | Recover with `CheckoutStatus` and `CheckoutID` instead of starting another checkout |
+| `completed`, `scheduled` | Either | No payment is due now: credits covered it (`PaymentSource`), or the change takes effect later (`TransitionDirection`, `TransitionPolicy`, `EffectiveAt`) |
+
+**Stripe.** Nozle always creates an embedded Checkout Session. It never returns a Stripe-hosted URL or your Stripe publishable key, so the browser needs the `pk_` key for the Stripe account connected in Nozle. `URL`, `PublishableKey` and `StripeAccount` stay empty.
 
 ```go
+checkout, err := client.Checkout(ctx, nozle.CheckoutParams{
+    CustomerID:     "customer-123",
+    PlanCode:       "pro_monthly",
+    ReturnURL:      "https://merchant.example/billing/complete",
+    IdempotencyKey: "customer-123-pro_monthly-v1",
+})
+if err != nil { return err }
+if checkout.Type == "stripe" {
+    // Return checkout.ClientSecret to the browser and mount Stripe Embedded Checkout.
+    // A new subscription has no checkout ID to poll: reload the subscription after
+    // Embedded Checkout completes. A paid upgrade carries PlanUpgradeIntentID.
+}
+```
+
+**Razorpay.** Razorpay supports only INR, and `AmountCents` is in paise. Return the `razorpay` result to the browser, open the modal there, and post the handler's three fields back to your backend. `VerifyCheckout` sends them to Nozle, which checks the signature and fetches the payment from Razorpay; the SDK does not check the signature locally. `CheckoutResult` also decodes `ExpiresAt`, and for a UPI AutoPay mandate (`RegisterMandate: &yes` in `CheckoutParams`) `CustomerID`, `Recurring` and `MandateMaxAmountCents`. Verify and status need an `sk_` key.
+
+```go
+// Backend: create.
+yes := true
+checkout, err := client.Checkout(ctx, nozle.CheckoutParams{
+    CustomerID:      "customer-123",
+    PlanCode:        "pro_monthly",
+    ReturnURL:       "https://merchant.example/billing/complete",
+    IdempotencyKey:  "customer-123-pro_monthly-v1",
+    RegisterMandate: &yes, // optional: UPI AutoPay
+})
+if err != nil { return err }
+if checkout.Type == "razorpay" {
+    // Browser, after loading https://checkout.razorpay.com/v1/checkout.js:
+    //   new Razorpay({key: KeyID, order_id: OrderID, amount: AmountCents, currency: Currency, handler}).open()
+    // For a mandate also pass customer_id: CustomerID and recurring: "1".
+}
+
+// Backend: verify what the handler returned, then poll until both statuses succeed.
 scope := nozle.CheckoutScope{CustomerID: "customer-123", SubscriptionID: "subscription-123"}
+_, err = client.VerifyCheckout(ctx, checkout.CheckoutID, nozle.RazorpayVerification{
+    RazorpayOrderID:   orderID,
+    RazorpayPaymentID: paymentID,
+    RazorpaySignature: signature,
+}, scope)
+if err != nil { return err }
 status, err := client.CheckoutStatus(ctx, checkout.CheckoutID, scope)
 if err != nil { return err }
-_ = status
+// status.Status: awaiting_payment | processing | succeeded | failed | expired | needs_review
+done := status.Status == "succeeded" && status.FulfillmentStatus == "succeeded"
+_ = done
 ```
+
+Bind each `CheckoutID` to the buyer who started it before you call verify or status. Pass both scope fields to tie a call to one customer and subscription; a status call can also run without a scope, with an `sk_` key. `CheckoutInvoice` starts collection for an existing invoice and returns the same result types.
+
+Provider failures are `*nozle.APIError`. `Code()` is the top-level code, and `HasCode` also matches the codes listed in `error_details`, for example `razorpay_requires_inr`, `payment_provider_required` or `invalid_checkout_signature`.
+
+```go
+_, err := client.Checkout(ctx, nozle.CheckoutParams{CustomerID: "customer-123", PlanCode: "pro_monthly"})
+var apiErr *nozle.APIError
+if nozle.AsAPIError(err, &apiErr) && apiErr.HasCode("razorpay_requires_inr") {
+    // Price the plan in INR for customers who pay through Razorpay.
+}
+```
+
+See the [Stripe](https://docs.nozle.dev/integrations/stripe) and [Razorpay](https://docs.nozle.dev/integrations/razorpay) integration guides for connection setup, webhooks, and limits.
 
 `Subscribe` creates a backend subscription. `CancelSubscription` defaults to `end_of_period` when its policy argument is empty; pass `immediate` only when termination now is intended.
 

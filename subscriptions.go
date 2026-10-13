@@ -72,8 +72,10 @@ func (c *Client) VerifyCheckout(ctx context.Context, checkoutID string, v Razorp
 	if err != nil {
 		return out, err
 	}
-	if err := required("verify_checkout", "razorpay_signature", v.RazorpaySignature); err != nil {
-		return out, err
+	for _, field := range [][2]string{{"razorpay_order_id", v.RazorpayOrderID}, {"razorpay_payment_id", v.RazorpayPaymentID}, {"razorpay_signature", v.RazorpaySignature}} {
+		if err := required("verify_checkout", field[0], field[1]); err != nil {
+			return out, err
+		}
 	}
 	err = c.request(ctx, "verify_checkout", "POST", false, query("/api/v1/checkout/"+segment(checkoutID)+"/verify", q), v, &out, "")
 	return out, err

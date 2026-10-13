@@ -72,28 +72,55 @@ type CheckoutParams struct {
 	RegisterMandate  *bool
 }
 
-// CheckoutResult is the response from the /api/v1/checkout endpoint.
+// CheckoutResult is the response from the /api/v1/checkout endpoint. Type selects
+// which fields are set: "stripe" (ClientSecret), "razorpay" (KeyID, OrderID,
+// AmountCents, Currency, ExpiresAt, and for a mandate CustomerID, Recurring and
+// MandateMaxAmountCents), "hosted" (PaymentURL), "processing", "completed" and
+// "scheduled". Fields that do not apply stay at their zero value.
 type CheckoutResult struct {
-	Type                   string      `json:"type"`
-	URL                    string      `json:"url"`
-	PaymentURL             string      `json:"payment_url"`
-	CheckoutID             string      `json:"checkout_id"`
-	ClientSecret           string      `json:"client_secret"`
-	PublishableKey         string      `json:"publishable_key"`
-	StripeAccount          string      `json:"stripe_account"`
-	KeyID                  string      `json:"key_id"`
-	OrderID                string      `json:"order_id"`
-	InvoiceID              string      `json:"invoice_id"`
-	AmountCents            int         `json:"amount_cents"`
-	AmountDueCents         json.Number `json:"amount_due_cents"`
-	Currency               string      `json:"currency"`
-	Status                 string      `json:"status"`
-	SubscriptionID         string      `json:"subscription_id"`
-	ExternalSubscriptionID string      `json:"external_subscription_id"`
-	ExternalEntityID       string      `json:"external_entity_id"`
-	PendingSubscriptionID  string      `json:"pending_subscription_id"`
-	EffectiveAt            string      `json:"effective_at"`
-	RenewalAt              string      `json:"renewal_at"`
+	Type string `json:"type"`
+	// URL is not returned by Nozle, which never issues a Stripe-hosted URL.
+	URL        string `json:"url"`
+	PaymentURL string `json:"payment_url"`
+	CheckoutID string `json:"checkout_id"`
+	// ClientSecret is the embedded Stripe Checkout Session secret ("cs_...").
+	ClientSecret string `json:"client_secret"`
+	// PublishableKey and StripeAccount are not returned by Nozle. Use your own
+	// Stripe publishable key for the Stripe account connected in Nozle.
+	PublishableKey string `json:"publishable_key"`
+	StripeAccount  string `json:"stripe_account"`
+	KeyID          string `json:"key_id"`
+	OrderID        string `json:"order_id"`
+	InvoiceID      string `json:"invoice_id"`
+	// PlanUpgradeIntentID is set instead of InvoiceID for a paid upgrade.
+	PlanUpgradeIntentID string `json:"plan_upgrade_intent_id"`
+	// AmountCents is in the currency's minor unit (paise for INR).
+	AmountCents    int         `json:"amount_cents"`
+	AmountDueCents json.Number `json:"amount_due_cents"`
+	Currency       string      `json:"currency"`
+	// ExpiresAt is set on Razorpay, hosted and processing results.
+	ExpiresAt string `json:"expires_at"`
+	// CustomerID, Recurring and MandateMaxAmountCents are set only on a Razorpay
+	// mandate checkout. Pass CustomerID and recurring "1" to the Razorpay modal.
+	CustomerID            string `json:"customer_id"`
+	Recurring             bool   `json:"recurring"`
+	MandateMaxAmountCents int    `json:"mandate_max_amount_cents"`
+	Status                string `json:"status"`
+	// PaymentSource is "credits" or "none" on a completed result.
+	PaymentSource  string `json:"payment_source"`
+	SubscriptionID string `json:"subscription_id"`
+	PlanCode       string `json:"plan_code"`
+	// TransitionDirection ("upgrade" or "downgrade") and TransitionPolicy are set
+	// on a scheduled result.
+	TransitionDirection    string `json:"transition_direction"`
+	TransitionPolicy       string `json:"transition_policy"`
+	ExternalSubscriptionID string `json:"external_subscription_id"`
+	ExternalEntityID       string `json:"external_entity_id"`
+	// PendingSubscriptionID is never returned. The pending subscription ID is
+	// SubscriptionID.
+	PendingSubscriptionID string `json:"pending_subscription_id"`
+	EffectiveAt           string `json:"effective_at"`
+	RenewalAt             string `json:"renewal_at"`
 }
 
 // SubscribeParams holds the fields for subscribing a customer.
