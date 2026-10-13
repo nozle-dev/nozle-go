@@ -11,6 +11,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Breaking
 - **Credit systems read `nozle_id`.** `ListCreditSystems` now takes each credit system's `ID` from the `nozle_id` key and no longer falls back to `lago_id`. Against a server that still sends only the old key, `ID` is empty. Ship this release together with the Nozle Core release that sends `nozle_id`.
 - **`Consume()` and `LLM()` are removed** (see Removed). Code that calls them no longer compiles.
+- **`CheckoutResult.URL`, `PublishableKey`, `StripeAccount` and `PendingSubscriptionID` are removed.** Core and the Engine never return them from checkout, so they were always empty. The pending subscription ID is `SubscriptionID`, and a hosted Razorpay payment link is `PaymentURL`; use your own Stripe publishable key. Code that reads the removed fields no longer compiles.
 
 ### Added
 - `CheckoutResult` now decodes `expires_at`, `customer_id`, `recurring`, `mandate_max_amount_cents` and `plan_upgrade_intent_id` (Razorpay orders, payment links and mandates, paid upgrades), and `plan_code`, `payment_source`, `transition_direction` and `transition_policy` (completed and scheduled results).
@@ -22,7 +23,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Deprecated
 - `CheckAndDeductParams.Feature` is ignored: it is no longer required, validated or sent, because the endpoint never used it. Existing code that sets it keeps working.
-- `CheckoutResult.PendingSubscriptionID` is never returned; use `SubscriptionID`. `URL`, `PublishableKey` and `StripeAccount` are not returned either; use your own Stripe publishable key.
 
 ### Removed
 - **Breaking:** `Consume()` and `LLM()` with `ConsumeParams`, `ConsumeResult`, `ConsumeUsage`, `LLMParams` and `LLMResult`. Their routes (`/api/v1/consume`, `/api/v1/llm`) are absent from the managed service and always returned HTTP 404. Use `CheckUsage`/`TrackUsage`, `Can`/`Track`, or the cost-event helpers instead.

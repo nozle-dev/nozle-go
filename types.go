@@ -80,21 +80,14 @@ type CheckoutParams struct {
 // replayed while its webhook is pending), "completed" and "scheduled". Fields that
 // do not apply stay at their zero value.
 type CheckoutResult struct {
-	Type string `json:"type"`
-	// URL is not returned by plan and invoice checkout, which never issue a
-	// Stripe-hosted URL (credit top-up purchases do return one as PaymentURL).
-	URL        string `json:"url"`
+	Type       string `json:"type"`
 	PaymentURL string `json:"payment_url"`
 	CheckoutID string `json:"checkout_id"`
 	// ClientSecret is the embedded Stripe Checkout Session secret ("cs_...").
 	ClientSecret string `json:"client_secret"`
-	// PublishableKey and StripeAccount are not returned by Nozle. Use your own
-	// Stripe publishable key for the Stripe account connected in Nozle.
-	PublishableKey string `json:"publishable_key"`
-	StripeAccount  string `json:"stripe_account"`
-	KeyID          string `json:"key_id"`
-	OrderID        string `json:"order_id"`
-	InvoiceID      string `json:"invoice_id"`
+	KeyID        string `json:"key_id"`
+	OrderID      string `json:"order_id"`
+	InvoiceID    string `json:"invoice_id"`
 	// PlanUpgradeIntentID is set instead of InvoiceID for a paid upgrade.
 	PlanUpgradeIntentID string `json:"plan_upgrade_intent_id"`
 	// AmountCents is in the currency's minor unit (paise for INR).
@@ -119,11 +112,8 @@ type CheckoutResult struct {
 	TransitionPolicy       string `json:"transition_policy"`
 	ExternalSubscriptionID string `json:"external_subscription_id"`
 	ExternalEntityID       string `json:"external_entity_id"`
-	// PendingSubscriptionID is never returned. The pending subscription ID is
-	// SubscriptionID.
-	PendingSubscriptionID string `json:"pending_subscription_id"`
-	EffectiveAt           string `json:"effective_at"`
-	RenewalAt             string `json:"renewal_at"`
+	EffectiveAt            string `json:"effective_at"`
+	RenewalAt              string `json:"renewal_at"`
 }
 
 // SubscribeParams holds the fields for subscribing a customer.
