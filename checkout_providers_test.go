@@ -39,7 +39,7 @@ func TestCheckoutDecodesRazorpayStripeAndTransitionFields(t *testing.T) {
 	}
 
 	stripe, err := checkoutClient(t, 200, `{"type":"stripe","client_secret":"cs_test_1","clientSecret":"cs_test_1","plan_upgrade_intent_id":"intent-2","amount_cents":1000,"currency":"USD"}`).Checkout(ctx, params)
-	if err != nil || stripe.ClientSecret != "cs_test_1" || stripe.PlanUpgradeIntentID != "intent-2" || stripe.PublishableKey != "" || stripe.URL != "" {
+	if err != nil || stripe.ClientSecret != "cs_test_1" || stripe.PlanUpgradeIntentID != "intent-2" {
 		t.Fatalf("stripe: %+v %v", stripe, err)
 	}
 

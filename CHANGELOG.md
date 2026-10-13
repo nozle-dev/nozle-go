@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Removed
+- **Breaking:** `CheckoutResult.URL`, `PublishableKey`, `StripeAccount` and `PendingSubscriptionID`. Core and the Engine never return them from checkout (the pending subscription ID is `SubscriptionID`; use your own Stripe publishable key). Code that reads these fields no longer compiles; they were always empty.
+
 ## [0.9.1] - 2026-10-13
 
 ### Breaking
