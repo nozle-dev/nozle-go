@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-10-14
+
+### Added
+- `Customer.BillingConfiguration` (`CustomerBillingConfiguration`) is sent as Core's `billing_configuration` by `UpsertCustomer`, so a customer can be linked to an existing Stripe customer in the same call. It is decoded from responses too. Upserts without it send the same body as before.
+
 ## [0.10.0] - 2026-10-13
 
 ### Changed

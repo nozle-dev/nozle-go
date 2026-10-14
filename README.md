@@ -180,6 +180,17 @@ if err != nil { return err }
 _ = page
 ```
 
+To link a customer that already exists in Stripe without creating a new one, pass `BillingConfiguration` with the provider customer ID. A provider assignment needs `ProviderCustomerID` or `SyncWithProvider: true`; otherwise Core drops it.
+
+```go
+_, err = client.UpsertCustomer(ctx, nozle.Customer{
+    ExternalID: "customer-123",
+    BillingConfiguration: &nozle.CustomerBillingConfiguration{
+        PaymentProvider: "stripe", PaymentProviderCode: "stripe_main", ProviderCustomerID: "cus_ABC123",
+    },
+})
+```
+
 `GetEntity`, `ActivateEntity`, `SuspendEntity`, and `BulkUpsertEntities` are also available. Entity IDs are limited to 255 UTF-8 bytes. List limits are 1–100; bulk upserts accept 1–500 unique Entity IDs.
 
 Each Entity can have its own subscription. `EnsureEntitySubscription`, `GetEntitySubscription`, and `ListEntitySubscriptions` manage identity and reads. `CheckoutEntitySubscription` and `ChangeEntitySubscriptionPlan` create a payment or plan transition for one Entity. `CheckoutEntitySubscriptions` groups up to 100 Entity plans in one checkout; `CancelEntitySubscription` and `RemoveEntitySubscription` manage its lifecycle.
