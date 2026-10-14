@@ -5,9 +5,37 @@ import "encoding/json"
 // Decimal is an exact product-credit value, transported as a JSON string.
 type Decimal string
 type Customer struct {
-	ExternalID string `json:"external_id"`
-	Name       string `json:"name,omitempty"`
-	Email      string `json:"email,omitempty"`
+	ExternalID           string                        `json:"external_id"`
+	Name                 string                        `json:"name,omitempty"`
+	Email                string                        `json:"email,omitempty"`
+	BillingConfiguration *CustomerBillingConfiguration `json:"billing_configuration,omitempty"`
+}
+
+// UnmarshalJSON drops a billing_configuration without a payment provider, which
+// Core returns for customers that have none, so a decoded Customer can be sent
+// back to UpsertCustomer unchanged.
+func (c *Customer) UnmarshalJSON(data []byte) error {
+	type plain Customer
+	var v plain
+	if err := json.Unmarshal(data, &v); err != nil {
+		return err
+	}
+	if v.BillingConfiguration != nil && v.BillingConfiguration.PaymentProvider == "" {
+		v.BillingConfiguration = nil
+	}
+	*c = Customer(v)
+	return nil
+}
+
+// CustomerBillingConfiguration assigns a payment provider to a customer.
+// Set ProviderCustomerID to link a customer that already exists at the
+// provider (e.g. a Stripe cus_…) without creating a new one.
+type CustomerBillingConfiguration struct {
+	PaymentProvider        string   `json:"payment_provider"`
+	PaymentProviderCode    string   `json:"payment_provider_code,omitempty"`
+	ProviderCustomerID     string   `json:"provider_customer_id,omitempty"`
+	SyncWithProvider       bool     `json:"sync_with_provider,omitempty"`
+	ProviderPaymentMethods []string `json:"provider_payment_methods,omitempty"`
 }
 type Entity struct {
 	ID         string         `json:"id"`
