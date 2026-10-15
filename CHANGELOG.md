@@ -8,12 +8,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Opt-in retries: `WithMaxRetries(n)` (default 0, no retries) and `WithRetryDelay(d)` (default 500ms, doubling up to 10 seconds, or the `Retry-After` header when sent). Network errors, timeouts, `429` and `5xx` are retried, only for calls that are safe to repeat: reads, calls with an idempotency key (such as `TrackUsage`), `Track`, `Meter`, `TrackCostEvent`, ``UpsertCustomer`, and the read-only `CheckUsage` and transition previews. `Subscribe`, `Checkout` and other writes without a key are never retried. `WithTimeout` applies to each attempt.
+
+### Added
+
 - `APIError.RequestID` (the `X-Request-Id` response header, which Core sends and the Engine does not yet) and `APIError.RetryAfter` (a `time.Duration` from `Retry-After`, as seconds or an HTTP date). Both are empty or zero when the service did not send them. The message is unchanged.
 
 ## [0.11.0] - 2026-10-14
 
 ### Added
-- `Customer.BillingConfiguration` (`CustomerBillingConfiguration`) is sent as Core's `billing_configuration` by `UpsertCustomer`, so a customer can be linked to an existing Stripe customer in the same call. It is decoded from responses too. Upserts without it send the same body as before.
+- `Customer.BillingConfiguration` (`CustomerBillingConfiguration`) is sent as Core's `billing_configuration` by ``UpsertCustomer`, so a customer can be linked to an existing Stripe customer in the same call. It is decoded from responses too. Upserts without it send the same body as before.
 
 ## [0.10.0] - 2026-10-13
 
