@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Breaking
+
+- Removed struct fields the API has never sent, which were always zero: `PingResult.OrgID`, `KeyType`, `Env` and `Version`, and `CanResult.CostPerUseCents`, `RevenuePerUseCents`, `MarginPerUseCents` and `MinMarginPercent` (use `CanResult.Economics`). `CostEventResult.Accepted` stays, derived from `Status` and no longer tagged as a JSON field.
+
+### Added
+
+- A contract test (`openapi_contract_test.go`) checks that response structs declare only JSON keys the API schema has. `scripts/sync_openapi_contract.py` refreshes `testdata/openapi_schemas.json` from `nozle-openapi.yaml`.
+
 ## [0.11.0] - 2026-10-14
 
 ### Added

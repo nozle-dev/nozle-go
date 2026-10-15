@@ -4,12 +4,8 @@ import "encoding/json"
 
 // PingResult is the response from the /api/v1/ping endpoint.
 type PingResult struct {
-	OK      bool   `json:"ok"`
-	OrgID   string `json:"org_id"`
-	KeyType string `json:"key_type"`
-	Env     string `json:"env"`
-	Engine  string `json:"engine"`
-	Version string `json:"version"`
+	OK     bool   `json:"ok"`
+	Engine string `json:"engine"`
 }
 
 // CanResult is the response from the /api/v1/can endpoint.
@@ -18,17 +14,13 @@ type CanResult struct {
 	Reason  string `json:"reason,omitempty"`
 	Used    int    `json:"used"`
 	// Limit and Remaining are nil for an unlimited feature (the API sends null), never 0: a zero allowance means none left.
-	Limit              *int              `json:"limit"`
-	Remaining          *int              `json:"remaining"`
-	CostPerUseCents    float64           `json:"cost_per_use_cents"`
-	RevenuePerUseCents float64           `json:"revenue_per_use_cents"`
-	MarginPerUseCents  float64           `json:"margin_per_use_cents"`
-	MinMarginPercent   float64           `json:"min_margin_percent,omitempty"`
-	FeatureType        string            `json:"feature_type"`
-	Configuration      map[string]string `json:"configuration"`
-	Overage            bool              `json:"overage"`
-	Economics          *CanEconomics     `json:"economics"`
-	Policy             json.RawMessage   `json:"policy"`
+	Limit         *int              `json:"limit"`
+	Remaining     *int              `json:"remaining"`
+	FeatureType   string            `json:"feature_type"`
+	Configuration map[string]string `json:"configuration"`
+	Overage       bool              `json:"overage"`
+	Economics     *CanEconomics     `json:"economics"`
+	Policy        json.RawMessage   `json:"policy"`
 }
 
 // Plan is a billing plan returned by the /api/v1/plans endpoint.

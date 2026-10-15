@@ -189,7 +189,8 @@ type CostEventParams struct {
 	Timestamp           *float64
 }
 type CostEventResult struct {
-	Accepted    bool   `json:"accepted"`
+	// Accepted is set by the SDK from Status; it is not a field of the API response.
+	Accepted    bool   `json:"-"`
 	CostEventID string `json:"cost_event_id"`
 	Status      string `json:"status"`
 }

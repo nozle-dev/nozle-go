@@ -57,7 +57,7 @@ func TestClient_Ping(t *testing.T) {
 			t.Errorf("want Authorization: Bearer sk_test-key, got %s", got)
 		}
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"ok":true,"org_id":"org-1","key_type":"live","env":"production"}`))
+		w.Write([]byte(`{"ok":true,"engine":"ok"}`))
 	}))
 	defer srv.Close()
 
@@ -69,14 +69,8 @@ func TestClient_Ping(t *testing.T) {
 	if !result.OK {
 		t.Error("expected ok=true")
 	}
-	if result.OrgID != "org-1" {
-		t.Errorf("want org_id=org-1, got %s", result.OrgID)
-	}
-	if result.KeyType != "live" {
-		t.Errorf("want key_type=live, got %s", result.KeyType)
-	}
-	if result.Env != "production" {
-		t.Errorf("want env=production, got %s", result.Env)
+	if result.Engine != "ok" {
+		t.Errorf("want engine=ok, got %s", result.Engine)
 	}
 }
 
