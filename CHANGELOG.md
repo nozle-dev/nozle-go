@@ -12,6 +12,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `WithHost` option (default `https://api.nozle.app`). It fills in the Engine URL (`host/engine`) and Core URL (`host/core`) when `WithBaseURL` and `WithEventsURL` are not given. Those two keep their meaning and win over `WithHost`.
 - Opt-in retries: `WithMaxRetries(n)` (default 0, no retries) and `WithRetryDelay(d)` (default 500ms, doubling up to 10 seconds, or the `Retry-After` header when sent). Network errors, timeouts, `429` and `5xx` are retried, only for calls that are safe to repeat: reads, calls with an idempotency key (such as `TrackUsage`), `Track`, `Meter`, `TrackCostEvent`, ``UpsertCustomer`, and the read-only `CheckUsage` and transition previews. `Subscribe`, `Checkout` and other writes without a key are never retried. `WithTimeout` applies to each attempt.
 - `APIError.RequestID` (the `X-Request-Id` response header, which Core sends and the Engine does not yet) and `APIError.RetryAfter` (a `time.Duration` from `Retry-After`, as seconds or an HTTP date). Both are empty or zero when the service did not send them. The message is unchanged.
+- A contract test (`openapi_contract_test.go`) checks that response structs declare only JSON keys the API schema has. `scripts/sync_openapi_contract.py` refreshes `testdata/openapi_schemas.json` from `nozle-openapi.yaml`.
+
+### Breaking
+
+- Removed struct fields the API has never sent, which were always zero: `PingResult.OrgID`, `KeyType`, `Env` and `Version`, and `CanResult.CostPerUseCents`, `RevenuePerUseCents`, `MarginPerUseCents` and `MinMarginPercent` (use `CanResult.Economics`). `CostEventResult.Accepted` stays, derived from `Status` and no longer tagged as a JSON field.
 
 ### Fixed
 
