@@ -6,8 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- A request contract test (`request_contract_test.go`) checks the body of SDK calls against the API request schema: no unknown key, no `null` where it is not allowed, enum values only. `scripts/sync_openapi_requests.py` refreshes `testdata/openapi_requests.json` from `nozle-openapi.yaml`.
+
 ### Fixed
 
+- Every request leaves out fields that are `null` or an empty string, at any depth, so an optional field you did not set is not sent and the API applies its default. Event `properties` and `metadata` are your own data and are sent unchanged.
 - `CheckoutEntitySubscription`, `ChangeEntitySubscriptionPlan` and `CheckoutEntitySubscriptions` leave out `return_url` and `billing_time` when they are empty instead of sending `""`, which is not a valid `billing_time`. `ChangeEntitySubscriptionPlan` now sends `BillingTime` when set; it used to drop it. `CheckoutEntitySubscriptions` rejects a `billingTime` other than `calendar` or `anniversary` before sending.
 
 ## [0.11.0] - 2026-10-14
