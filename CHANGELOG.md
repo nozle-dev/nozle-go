@@ -13,6 +13,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Opt-in retries: `WithMaxRetries(n)` (default 0, no retries) and `WithRetryDelay(d)` (default 500ms, doubling up to 10 seconds, or the `Retry-After` header when sent). Network errors, timeouts, `429` and `5xx` are retried, only for calls that are safe to repeat: reads, calls with an idempotency key (such as `TrackUsage`), `Track`, `Meter`, `TrackCostEvent`, ``UpsertCustomer`, and the read-only `CheckUsage` and transition previews. `Subscribe`, `Checkout` and other writes without a key are never retried. `WithTimeout` applies to each attempt.
 - `APIError.RequestID` (the `X-Request-Id` response header, which Core sends and the Engine does not yet) and `APIError.RetryAfter` (a `time.Duration` from `Retry-After`, as seconds or an HTTP date). Both are empty or zero when the service did not send them. The message is unchanged.
 - A contract test (`openapi_contract_test.go`) checks that response structs declare only JSON keys the API schema has. `scripts/sync_openapi_contract.py` refreshes `testdata/openapi_schemas.json` from `nozle-openapi.yaml`.
+- A request contract test (`request_contract_test.go`) checks the body of SDK calls against the API request schema: no unknown key, no `null` where it is not allowed, enum values only. `scripts/sync_openapi_requests.py` refreshes `testdata/openapi_requests.json` from `nozle-openapi.yaml`.
 
 ### Breaking
 
@@ -21,6 +22,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Fixed
 
 - `TrackUsage` reuses the timestamp it filled in when the same idempotency key is sent again on the same client, so a retry no longer fails with 409 `idempotency_key_reused`. The client remembers the last 1000 keys; a retry from another process or after a restart must pass `Timestamp`.
+- Every request leaves out fields that are `null` or an empty string, at any depth, so an optional field you did not set is not sent and the API applies its default. Event `properties` and `metadata` are your own data and are sent unchanged.
+- `CheckoutEntitySubscription`, `ChangeEntitySubscriptionPlan` and `CheckoutEntitySubscriptions` leave out `return_url` and `billing_time` when they are empty instead of sending `""`, which is not a valid `billing_time`. `ChangeEntitySubscriptionPlan` now sends `BillingTime` when set; it used to drop it. `CheckoutEntitySubscriptions` rejects a `billingTime` other than `calendar` or `anniversary` before sending.
 
 ## [0.11.0] - 2026-10-14
 

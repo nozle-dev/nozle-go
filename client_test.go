@@ -588,3 +588,37 @@ func TestTrackUsage_reusesItsTimestampForARetriedKey(t *testing.T) {
 		t.Fatalf("timestamps = %v", stamps)
 	}
 }
+
+func TestEntitySubscriptionRequests_leaveOutUnsetOptionalFields(t *testing.T) {
+	var bodies []map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		bodies = append(bodies, body)
+		w.Write([]byte(`{"type":"completed","entity_subscription_checkout":{"id":"batch-1"}}`))
+	}))
+	defer srv.Close()
+	c := nozle.New("sk_test-key", nozle.WithEventsURL(srv.URL))
+	ctx := context.Background()
+
+	_, _ = c.CheckoutEntitySubscription(ctx, "cust", "user-42", nozle.EntitySubscriptionChange{PlanCode: "pro"})
+	_, _ = c.ChangeEntitySubscriptionPlan(ctx, "cust", "user-42", nozle.EntitySubscriptionChange{PlanCode: "team", BillingTime: "calendar"})
+	_, _ = c.CheckoutEntitySubscriptions(ctx, "cust", []nozle.EntitySubscriptionCheckoutItem{{ExternalEntityID: "user-42", PlanCode: "pro"}}, "", "", "batch-1")
+
+	if len(bodies) != 3 {
+		t.Fatalf("requests = %d", len(bodies))
+	}
+	if _, set := bodies[0]["billing_time"]; set || len(bodies[0]) != 1 {
+		t.Errorf("checkout body = %v, want only plan_code", bodies[0])
+	}
+	if bodies[1]["billing_time"] != "calendar" {
+		t.Errorf("change-plan body = %v, want billing_time calendar", bodies[1])
+	}
+	batch := bodies[2]["entity_subscription_checkout"].(map[string]any)
+	if _, set := batch["billing_time"]; set {
+		t.Errorf("batch body = %v, want no billing_time", batch)
+	}
+	if _, set := batch["return_url"]; set {
+		t.Errorf("batch body = %v, want no return_url", batch)
+	}
+}
