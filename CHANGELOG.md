@@ -14,10 +14,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `APIError.RequestID` (the `X-Request-Id` response header, which Core sends and the Engine does not yet) and `APIError.RetryAfter` (a `time.Duration` from `Retry-After`, as seconds or an HTTP date). Both are empty or zero when the service did not send them. The message is unchanged.
 - A contract test (`openapi_contract_test.go`) checks that response structs declare only JSON keys the API schema has. `scripts/sync_openapi_contract.py` refreshes `testdata/openapi_schemas.json` from `nozle-openapi.yaml`.
 - A request contract test (`request_contract_test.go`) checks the body of SDK calls against the API request schema: no unknown key, no `null` where it is not allowed, enum values only. `scripts/sync_openapi_requests.py` refreshes `testdata/openapi_requests.json` from `nozle-openapi.yaml`.
+- `WrapHTTPClient(providerClient, nozleClient, CaptureOptions{...})` returns an `*http.Client` that records the token usage of every successful LLM response it carries, for any LLM SDK that takes an HTTP client or for your own requests. Usage is recognised by the response shape: OpenAI-compatible `usage` (any OpenAI-compatible API, including the Responses API), Anthropic `usage` and Gemini `usageMetadata`, for JSON responses and streams. Chat completion streams are asked for usage (`stream_options.include_usage`; `SkipStreamUsage` turns it off). The customer comes from the `X-Nozle-Customer-Id` request header (not sent to the provider), `WithCustomer(ctx, id)` on the request context, `CustomerIDFunc`, or `CustomerID`. Recording never changes or fails the provider response; failures go to `OnError`.
+- `RecordUsage(ctx, ProviderCapture, Usage)` records usage your code read itself.
 
 ### Breaking
 
 - Removed struct fields the API has never sent, which were always zero: `PingResult.OrgID`, `KeyType`, `Env` and `Version`, and `CanResult.CostPerUseCents`, `RevenuePerUseCents`, `MarginPerUseCents` and `MinMarginPercent` (use `CanResult.Economics`). `CostEventResult.Accepted` stays, derived from `Status` and no longer tagged as a JSON field.
+
+### Changed
+
+- Usage events recorded by `WrapOpenAIHTTPClient`, `WrapAnthropicHTTPClient`, `CaptureOpenAIUsage`, `CaptureAnthropicUsage` and the new capture use the provider's response id as the transaction id (`llm-<format>-<id>`) when there is one and no `TransactionID` is set, so the same response is never recorded twice. `ProviderCapture.ProviderHost` is sent as `provider_host`.
 
 ### Fixed
 
