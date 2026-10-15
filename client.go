@@ -39,6 +39,7 @@ type Client struct {
 	debug                      bool
 	timeout                    time.Duration
 	httpClient                 *http.Client
+	usageTimestamps            usageTimestampMemo
 }
 
 func New(apiKey string, opts ...Option) *Client {

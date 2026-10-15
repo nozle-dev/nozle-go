@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	nozle "github.com/nozle-dev/nozle-go"
 )
@@ -451,5 +452,31 @@ func TestClient_debugMode(t *testing.T) {
 	_, err := c.Ping(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestTrackUsage_reusesItsTimestampForARetriedKey(t *testing.T) {
+	var stamps []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		stamps = append(stamps, body["timestamp"].(string))
+		w.Write([]byte(`{"allowed":true}`))
+	}))
+	defer srv.Close()
+	c := nozle.New("sk_test-key", nozle.WithBaseURL(srv.URL))
+	p := nozle.UsageParams{CustomerID: "c", FeatureCode: "f"}
+	for _, key := range []string{"k1", "k1", "k2"} {
+		if _, err := c.TrackUsage(context.Background(), p, key); err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(2 * time.Millisecond)
+	}
+	p.Timestamp = "2026-01-01T00:00:00Z"
+	if _, err := c.TrackUsage(context.Background(), p, "k3"); err != nil {
+		t.Fatal(err)
+	}
+	if stamps[0] != stamps[1] || stamps[2] == stamps[0] || stamps[3] != "2026-01-01T00:00:00Z" {
+		t.Fatalf("timestamps = %v", stamps)
 	}
 }
