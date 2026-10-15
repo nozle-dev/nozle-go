@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- `WithHost` option (default `https://api.nozle.app`). It fills in the Engine URL (`host/engine`) and Core URL (`host/core`) when `WithBaseURL` and `WithEventsURL` are not given. Those two keep their meaning and win over `WithHost`.
+
+
 ## [0.11.0] - 2026-10-14
 
 ### Added

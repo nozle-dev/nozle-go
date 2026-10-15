@@ -13,10 +13,15 @@ import (
 	"time"
 )
 
-const DefaultEngineURL = "https://api.nozle.app/engine"
-const DefaultCoreURL = "https://api.nozle.app/core"
+const DefaultHost = "https://api.nozle.app"
+const DefaultEngineURL = DefaultHost + "/engine"
+const DefaultCoreURL = DefaultHost + "/core"
 
 type Option func(*Client)
+
+// WithHost sets the root URL of the Nozle API. Engine calls go to host+"/engine"
+// and Core calls to host+"/core". WithBaseURL and WithEventsURL override either.
+func WithHost(u string) Option { return func(c *Client) { c.host = u } }
 
 // WithBaseURL overrides the Engine URL.
 func WithBaseURL(u string) Option {
@@ -35,19 +40,26 @@ func WithDebug(on bool) Option             { return func(c *Client) { c.debug = 
 func WithHTTPClient(h *http.Client) Option { return func(c *Client) { c.httpClient = h } }
 
 type Client struct {
-	baseURL, eventsURL, apiKey string
-	debug                      bool
-	timeout                    time.Duration
-	httpClient                 *http.Client
+	host, baseURL, eventsURL, apiKey string
+	debug                            bool
+	timeout                          time.Duration
+	httpClient                       *http.Client
 }
 
 func New(apiKey string, opts ...Option) *Client {
 	if strings.TrimSpace(apiKey) == "" {
 		panic("nozle: apiKey must not be empty")
 	}
-	c := &Client{baseURL: DefaultEngineURL, eventsURL: DefaultCoreURL, apiKey: apiKey, timeout: 10 * time.Second, httpClient: &http.Client{}}
+	c := &Client{host: DefaultHost, apiKey: apiKey, timeout: 10 * time.Second, httpClient: &http.Client{}}
 	for _, o := range opts {
 		o(c)
+	}
+	host := strings.TrimRight(c.host, "/")
+	if c.baseURL == "" {
+		c.baseURL = host + "/engine"
+	}
+	if c.eventsURL == "" {
+		c.eventsURL = host + "/core"
 	}
 	c.baseURL = strings.TrimRight(c.baseURL, "/")
 	c.eventsURL = strings.TrimRight(c.eventsURL, "/")
