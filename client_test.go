@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	nozle "github.com/nozle-dev/nozle-go"
 )
@@ -451,5 +452,39 @@ func TestClient_debugMode(t *testing.T) {
 	_, err := c.Ping(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestClient_APIError_requestIDAndRetryAfter(t *testing.T) {
+	for _, tc := range []struct {
+		name, retryAfter string
+		wantMin, wantMax time.Duration
+	}{
+		{"seconds", "30", 30 * time.Second, 30 * time.Second},
+		{"date", time.Now().Add(20 * time.Second).UTC().Format(http.TimeFormat), time.Second, 20 * time.Second},
+		{"invalid", "soon", 0, 0},
+		{"absent", "", 0, 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("X-Request-Id", "req-1")
+				if tc.retryAfter != "" {
+					w.Header().Set("Retry-After", tc.retryAfter)
+				}
+				w.WriteHeader(http.StatusServiceUnavailable)
+			}))
+			defer srv.Close()
+			_, err := nozle.New("sk_test-key", nozle.WithBaseURL(srv.URL)).Plans(context.Background())
+			var apiErr *nozle.APIError
+			if !nozle.AsAPIError(err, &apiErr) {
+				t.Fatal("expected APIError")
+			}
+			if apiErr.RequestID != "req-1" {
+				t.Errorf("RequestID = %q", apiErr.RequestID)
+			}
+			if apiErr.RetryAfter < tc.wantMin || apiErr.RetryAfter > tc.wantMax {
+				t.Errorf("RetryAfter = %v, want between %v and %v", apiErr.RetryAfter, tc.wantMin, tc.wantMax)
+			}
+		})
 	}
 }

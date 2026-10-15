@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -61,6 +62,10 @@ type APIError struct {
 	StatusCode                    int
 	Method, Path, Operation, Body string
 	Details                       any
+	// RequestID is the X-Request-Id response header, when the service sent one. Quote it to support.
+	RequestID string
+	// RetryAfter is how long the service asked callers to wait, from the Retry-After header. Zero when absent.
+	RetryAfter time.Duration
 }
 
 func (e *APIError) Error() string {
@@ -200,7 +205,10 @@ func (c *Client) request(ctx context.Context, op, method string, core bool, path
 				safe = string(redacted)
 			}
 		}
-		return &APIError{StatusCode: resp.StatusCode, Method: method, Path: req.URL.Path, Operation: op, Body: safe, Details: details}
+		return &APIError{
+			StatusCode: resp.StatusCode, Method: method, Path: req.URL.Path, Operation: op, Body: safe, Details: details,
+			RequestID: resp.Header.Get("X-Request-Id"), RetryAfter: parseRetryAfter(resp.Header.Get("Retry-After")),
+		}
 	}
 	if out == nil || resp.StatusCode == 204 {
 		return nil
@@ -234,4 +242,23 @@ func redact(v any) any {
 		}
 	}
 	return v
+}
+
+// parseRetryAfter reads a Retry-After value that is a number of seconds or an HTTP date.
+func parseRetryAfter(value string) time.Duration {
+	if value == "" {
+		return 0
+	}
+	if seconds, err := strconv.ParseFloat(value, 64); err == nil {
+		if seconds < 0 {
+			return 0
+		}
+		return time.Duration(seconds * float64(time.Second))
+	}
+	if moment, err := http.ParseTime(value); err == nil {
+		if wait := time.Until(moment); wait > 0 {
+			return wait
+		}
+	}
+	return 0
 }
