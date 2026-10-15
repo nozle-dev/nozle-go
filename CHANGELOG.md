@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- `CheckoutEntitySubscription`, `ChangeEntitySubscriptionPlan` and `CheckoutEntitySubscriptions` leave out `return_url` and `billing_time` when they are empty instead of sending `""`, which is not a valid `billing_time`. `ChangeEntitySubscriptionPlan` now sends `BillingTime` when set; it used to drop it. `CheckoutEntitySubscriptions` rejects a `billingTime` other than `calendar` or `anniversary` before sending.
+
 ## [0.11.0] - 2026-10-14
 
 ### Added
