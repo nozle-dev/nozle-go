@@ -21,6 +21,8 @@ func usageRecorder(t *testing.T, fail bool) (*nozle.Client, chan map[string]any)
 	events := make(chan map[string]any, 8)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
+		case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/api/v1/features/"):
+			http.NotFound(w, r)
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/subscriptions":
 			_, _ = w.Write([]byte(`{"subscriptions":[{"external_id":"sub-1","status":"active"}]}`))
 		case r.URL.Path == "/api/v1/events":
@@ -222,5 +224,34 @@ func TestRecordUsageSplitsCategories(t *testing.T) {
 	}
 	if err := billing.RecordUsage(context.Background(), nozle.ProviderCapture{}, nozle.Usage{}); err == nil {
 		t.Fatal("missing customer accepted")
+	}
+}
+
+func TestWrapHTTPClientReportsAMissingFeatureOnce(t *testing.T) {
+	billing, events := usageRecorder(t, false)
+	server := provider(t, "application/json", `{"id":"c9","usage":{"prompt_tokens":1,"completion_tokens":1}}`, nil)
+	failures := make(chan error, 4)
+	client, _ := nozle.WrapHTTPClient(nil, billing, nozle.CaptureOptions{CustomerID: "cust_1", OnError: func(err error) { failures <- err }})
+	for i := 0; i < 2; i++ {
+		resp, err := client.Post(server.URL+"/v1/chat/completions", "application/json", strings.NewReader(`{}`))
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, _ = io.Copy(io.Discard, resp.Body)
+		_ = resp.Body.Close()
+		nextEvent(t, events)
+	}
+	select {
+	case err := <-failures:
+		var setup *nozle.SetupError
+		if !errors.As(err, &setup) || setup.Code != "feature_not_found" {
+			t.Fatalf("unexpected report: %v", err)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("missing Feature not reported")
+	}
+	time.Sleep(100 * time.Millisecond)
+	if len(failures) != 0 {
+		t.Fatalf("reported more than once: %v", <-failures)
 	}
 }
