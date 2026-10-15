@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 )
@@ -48,7 +49,10 @@ type Client struct {
 
 func New(apiKey string, opts ...Option) *Client {
 	if strings.TrimSpace(apiKey) == "" {
-		panic("nozle: apiKey must not be empty")
+		apiKey = os.Getenv("NOZLE_SECRET_KEY")
+	}
+	if strings.TrimSpace(apiKey) == "" {
+		panic("nozle: apiKey must not be empty (pass it or set NOZLE_SECRET_KEY)")
 	}
 	c := &Client{host: DefaultHost, apiKey: apiKey, timeout: 10 * time.Second, httpClient: &http.Client{}}
 	for _, o := range opts {
