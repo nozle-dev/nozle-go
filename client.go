@@ -7,9 +7,11 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math/rand"
 	"net/http"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -36,11 +38,21 @@ func WithBaseURL(u string) Option {
 func WithEventsURL(u string) Option {
 	return func(c *Client) { c.eventsURL = u }
 }
-func WithTimeout(d time.Duration) Option   { return func(c *Client) { c.timeout = d } }
-func WithDebug(on bool) Option             { return func(c *Client) { c.debug = on } }
-func WithHTTPClient(h *http.Client) Option { return func(c *Client) { c.httpClient = h } }
+func WithTimeout(d time.Duration) Option { return func(c *Client) { c.timeout = d } }
+
+// WithMaxRetries sets how many extra attempts follow a network error, timeout, 429 or 5xx. The default is 0:
+// no retries. Only calls that are safe to repeat are retried.
+func WithMaxRetries(n int) Option { return func(c *Client) { c.maxRetries = max(0, n) } }
+
+// WithRetryDelay sets the first retry delay (default 500ms). It doubles each retry up to 10 seconds, or the
+// Retry-After header is used when the service sends one.
+func WithRetryDelay(d time.Duration) Option { return func(c *Client) { c.retryDelay = d } }
+func WithDebug(on bool) Option              { return func(c *Client) { c.debug = on } }
+func WithHTTPClient(h *http.Client) Option  { return func(c *Client) { c.httpClient = h } }
 
 type Client struct {
+	maxRetries                       int
+	retryDelay                       time.Duration
 	host, baseURL, eventsURL, apiKey string
 	debug                            bool
 	timeout                          time.Duration
@@ -54,7 +66,7 @@ func New(apiKey string, opts ...Option) *Client {
 	if strings.TrimSpace(apiKey) == "" {
 		panic("nozle: apiKey must not be empty (pass it or set NOZLE_SECRET_KEY)")
 	}
-	c := &Client{host: DefaultHost, apiKey: apiKey, timeout: 10 * time.Second, httpClient: &http.Client{}}
+	c := &Client{host: DefaultHost, retryDelay: 500 * time.Millisecond, apiKey: apiKey, timeout: 10 * time.Second, httpClient: &http.Client{}}
 	for _, o := range opts {
 		o(c)
 	}
@@ -77,6 +89,10 @@ type APIError struct {
 	StatusCode                    int
 	Method, Path, Operation, Body string
 	Details                       any
+	// RequestID is the X-Request-Id response header, when the service sent one. Quote it to support.
+	RequestID string
+	// RetryAfter is how long the service asked callers to wait, from the Retry-After header. Zero when absent.
+	RetryAfter time.Duration
 }
 
 func (e *APIError) Error() string {
@@ -172,7 +188,55 @@ func (c *Client) endpoint(core bool) string {
 	}
 	return c.baseURL
 }
+
+// requestOps that are safe to repeat although they carry no Idempotency-Key: events and cost events
+// are idempotent by their own id, a customer upsert converges, and checks and previews only read.
+var repeatableOps = map[string]bool{
+	"track": true, "meter": true, "cost_events.track": true, "customers.upsert": true,
+	"usage.check": true, "preview_subscription_transition": true, "preview_subscription_change": true,
+}
+
+// request sends one call. With WithMaxRetries set it retries network errors, timeouts, 429 and 5xx,
+// but only a call that is safe to repeat: a read, a call with an idempotency key, or a repeatable op.
 func (c *Client) request(ctx context.Context, op, method string, core bool, path string, body, out any, key string) error {
+	retries := 0
+	if method == http.MethodGet || method == http.MethodHead || key != "" || repeatableOps[op] {
+		retries = c.maxRetries
+	}
+	for attempt := 0; ; attempt++ {
+		err := c.requestOnce(ctx, op, method, core, path, body, out, key)
+		if err == nil || attempt >= retries || ctx.Err() != nil {
+			return err
+		}
+		wait, retryable := c.retryWait(err, attempt)
+		if !retryable {
+			return err
+		}
+		select {
+		case <-ctx.Done():
+			return err
+		case <-time.After(wait):
+		}
+	}
+}
+
+func (c *Client) retryWait(err error, attempt int) (time.Duration, bool) {
+	var api *APIError
+	var transport *TransportError
+	switch {
+	case errors.As(err, &api) && (api.StatusCode == http.StatusTooManyRequests || api.StatusCode >= 500):
+		if api.RetryAfter > 0 {
+			return min(api.RetryAfter, 30*time.Second), true
+		}
+	case errors.As(err, &transport):
+	default:
+		return 0, false
+	}
+	base := min(c.retryDelay<<attempt, 10*time.Second)
+	return base/2 + time.Duration(rand.Int63n(int64(base/2)+1)), true
+}
+
+func (c *Client) requestOnce(ctx context.Context, op, method string, core bool, path string, body, out any, key string) error {
 	if op != "plans" {
 		if err := validateKey(c.apiKey, op); err != nil {
 			return err
@@ -216,7 +280,10 @@ func (c *Client) request(ctx context.Context, op, method string, core bool, path
 				safe = string(redacted)
 			}
 		}
-		return &APIError{StatusCode: resp.StatusCode, Method: method, Path: req.URL.Path, Operation: op, Body: safe, Details: details}
+		return &APIError{
+			StatusCode: resp.StatusCode, Method: method, Path: req.URL.Path, Operation: op, Body: safe, Details: details,
+			RequestID: resp.Header.Get("X-Request-Id"), RetryAfter: parseRetryAfter(resp.Header.Get("Retry-After")),
+		}
 	}
 	if out == nil || resp.StatusCode == 204 {
 		return nil
@@ -250,4 +317,23 @@ func redact(v any) any {
 		}
 	}
 	return v
+}
+
+// parseRetryAfter reads a Retry-After value that is a number of seconds or an HTTP date.
+func parseRetryAfter(value string) time.Duration {
+	if value == "" {
+		return 0
+	}
+	if seconds, err := strconv.ParseFloat(value, 64); err == nil {
+		if seconds < 0 {
+			return 0
+		}
+		return time.Duration(seconds * float64(time.Second))
+	}
+	if moment, err := http.ParseTime(value); err == nil {
+		if wait := time.Until(moment); wait > 0 {
+			return wait
+		}
+	}
+	return 0
 }

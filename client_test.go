@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	nozle "github.com/nozle-dev/nozle-go"
 )
@@ -451,5 +452,119 @@ func TestClient_debugMode(t *testing.T) {
 	_, err := c.Ping(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestClient_APIError_requestIDAndRetryAfter(t *testing.T) {
+	for _, tc := range []struct {
+		name, retryAfter string
+		wantMin, wantMax time.Duration
+	}{
+		{"seconds", "30", 30 * time.Second, 30 * time.Second},
+		{"date", time.Now().Add(20 * time.Second).UTC().Format(http.TimeFormat), time.Second, 20 * time.Second},
+		{"invalid", "soon", 0, 0},
+		{"absent", "", 0, 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("X-Request-Id", "req-1")
+				if tc.retryAfter != "" {
+					w.Header().Set("Retry-After", tc.retryAfter)
+				}
+				w.WriteHeader(http.StatusServiceUnavailable)
+			}))
+			defer srv.Close()
+			_, err := nozle.New("sk_test-key", nozle.WithBaseURL(srv.URL)).Plans(context.Background())
+			var apiErr *nozle.APIError
+			if !nozle.AsAPIError(err, &apiErr) {
+				t.Fatal("expected APIError")
+			}
+			if apiErr.RequestID != "req-1" {
+				t.Errorf("RequestID = %q", apiErr.RequestID)
+			}
+			if apiErr.RetryAfter < tc.wantMin || apiErr.RetryAfter > tc.wantMax {
+				t.Errorf("RetryAfter = %v, want between %v and %v", apiErr.RetryAfter, tc.wantMin, tc.wantMax)
+			}
+		})
+	}
+}
+
+func retryServer(t *testing.T, statuses ...int) (*httptest.Server, *int) {
+	t.Helper()
+	calls := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		status := statuses[min(calls, len(statuses)-1)]
+		calls++
+		w.WriteHeader(status)
+		if status == 200 {
+			w.Write([]byte(`{"plans":[]}`))
+		}
+	}))
+	t.Cleanup(srv.Close)
+	return srv, &calls
+}
+
+func TestRetries_offByDefault(t *testing.T) {
+	srv, calls := retryServer(t, 503)
+	_, err := nozle.New("sk_test-key", nozle.WithBaseURL(srv.URL)).Plans(context.Background())
+	if err == nil || *calls != 1 {
+		t.Fatalf("err = %v, calls = %d", err, *calls)
+	}
+}
+
+func TestRetries_aReadIsRetriedUntilItSucceeds(t *testing.T) {
+	srv, calls := retryServer(t, 503, 429, 500, 200)
+	c := nozle.New("sk_test-key", nozle.WithBaseURL(srv.URL), nozle.WithMaxRetries(3), nozle.WithRetryDelay(time.Millisecond))
+	if _, err := c.Plans(context.Background()); err != nil || *calls != 4 {
+		t.Fatalf("err = %v, calls = %d", err, *calls)
+	}
+}
+
+func TestRetries_stopAtMaxRetriesAndSkipA4xx(t *testing.T) {
+	srv, calls := retryServer(t, 500)
+	c := nozle.New("sk_test-key", nozle.WithBaseURL(srv.URL), nozle.WithMaxRetries(2), nozle.WithRetryDelay(time.Millisecond))
+	if _, err := c.Plans(context.Background()); err == nil || *calls != 3 {
+		t.Fatalf("err = %v, calls = %d", err, *calls)
+	}
+	srv, calls = retryServer(t, 422)
+	c = nozle.New("sk_test-key", nozle.WithBaseURL(srv.URL), nozle.WithMaxRetries(2), nozle.WithRetryDelay(time.Millisecond))
+	if _, err := c.Plans(context.Background()); err == nil || *calls != 1 {
+		t.Fatalf("err = %v, calls = %d", err, *calls)
+	}
+}
+
+func TestRetries_aWriteIsRetriedOnlyWhenItIsSafeToRepeat(t *testing.T) {
+	srv, calls := retryServer(t, 503)
+	c := nozle.New("sk_test-key", nozle.WithBaseURL(srv.URL), nozle.WithMaxRetries(2), nozle.WithRetryDelay(time.Millisecond))
+	_, _ = c.Subscribe(context.Background(), nozle.SubscribeParams{CustomerID: "cust", PlanCode: "pro"})
+	if *calls != 1 {
+		t.Fatalf("subscribe calls = %d, want 1", *calls)
+	}
+	*calls = 0
+	_, _ = c.TrackUsage(context.Background(), nozle.UsageParams{CustomerID: "c", FeatureCode: "f", Timestamp: "2026-10-15T10:00:00Z"}, "k1")
+	if *calls != 3 {
+		t.Fatalf("usage.track calls = %d, want 3", *calls)
+	}
+}
+
+func TestRetries_waitForRetryAfter(t *testing.T) {
+	calls := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		if calls == 1 {
+			w.Header().Set("Retry-After", "1")
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		w.Write([]byte(`{"plans":[]}`))
+	}))
+	defer srv.Close()
+	started := time.Now()
+	c := nozle.New("sk_test-key", nozle.WithBaseURL(srv.URL), nozle.WithMaxRetries(1), nozle.WithRetryDelay(time.Millisecond))
+	if _, err := c.Plans(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if waited := time.Since(started); waited < 900*time.Millisecond {
+		t.Fatalf("waited %v, want about 1s", waited)
 	}
 }
