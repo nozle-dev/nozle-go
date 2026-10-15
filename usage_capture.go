@@ -5,9 +5,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -67,10 +70,17 @@ func WrapHTTPClient(providerClient *http.Client, nozleClient *Client, opts Captu
 }
 
 type captureTransport struct {
-	base  http.RoundTripper
-	nozle *Client
-	opts  CaptureOptions
+	base    http.RoundTripper
+	nozle   *Client
+	opts    CaptureOptions
+	checked sync.Map // event codes already checked for a Feature
 }
+
+// SetupError reports a capture setup problem. Code is "feature_not_found" when no Feature has
+// the event code, so the usage is stored but not billed.
+type SetupError struct{ Code, Message string }
+
+func (e *SetupError) Error() string { return "nozle: " + e.Message }
 
 func (t *captureTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	customer := strings.TrimSpace(req.Header.Get(captureCustomerHeader))
@@ -196,6 +206,26 @@ func (t *captureTransport) observe(reader *io.PipeReader, stream bool, call capt
 	p := ProviderCapture{CustomerID: call.customer, FeatureCode: t.opts.FeatureCode, Feature: call.feature, CostMeterCode: t.opts.CostMeterCode, Model: model, RequestID: found.id, ProviderHost: call.host, Latency: time.Since(call.started)}
 	if err := t.nozle.captureProvider(ctx, found.format, p, found.input, found.output, found.categories); err != nil && t.opts.OnError != nil {
 		t.opts.OnError(err)
+	}
+	t.checkFeatureOnce(ctx, p.FeatureCode)
+}
+
+// checkFeatureOnce reports, once per event code, when no Feature has the code: the usage is then
+// stored but never billed. Any other answer, including a key without read permission, is silent.
+func (t *captureTransport) checkFeatureOnce(ctx context.Context, code string) {
+	if code == "" {
+		code = "llm_tokens"
+	}
+	if t.opts.OnError == nil {
+		return
+	}
+	if _, seen := t.checked.LoadOrStore(code, true); seen {
+		return
+	}
+	var apiErr *APIError
+	err := t.nozle.request(ctx, "feature_lookup", http.MethodGet, true, "/api/v1/features/"+url.PathEscape(code), nil, nil, "")
+	if errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusNotFound {
+		t.opts.OnError(&SetupError{Code: "feature_not_found", Message: `no Feature has the code "` + code + `", so this usage is stored but not billed; create a metered Feature with that code: https://docs.nozle.dev/guides/ai/token-billing`})
 	}
 }
 

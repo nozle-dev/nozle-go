@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- `WrapHTTPClient` reports once per event code, through `OnError`, a `*SetupError` with `Code == "feature_not_found"` when no Feature has the event code: the usage is stored but not billed. Recording is not blocked.
 - `WrapHTTPClient(providerClient, nozleClient, CaptureOptions{...})` returns an `*http.Client` that records the token usage of every successful LLM response it carries, for any LLM SDK that takes an HTTP client or for your own requests. Usage is recognised by the response shape: OpenAI-compatible `usage` (any OpenAI-compatible API, including the Responses API), Anthropic `usage` and Gemini `usageMetadata`, for JSON responses and streams. Chat completion streams are asked for usage (`stream_options.include_usage`; `SkipStreamUsage` turns it off). The customer comes from the `X-Nozle-Customer-Id` request header (not sent to the provider), `WithCustomer(ctx, id)` on the request context, `CustomerIDFunc`, or `CustomerID`. Recording never changes or fails the provider response; failures go to `OnError`.
 - `RecordUsage(ctx, ProviderCapture, Usage)` records usage your code read itself.
 
