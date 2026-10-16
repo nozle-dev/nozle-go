@@ -42,6 +42,7 @@ func TestResponseStructsMatchTheOpenAPISchemas(t *testing.T) {
 		{CustomerUsage{}, []string{"CustomerUsageObject"}},
 		{CustomerProjectedUsage{}, []string{"CustomerProjectedUsageObject"}},
 		{ChargeUsage{}, []string{"CustomerChargeUsageObject"}},
+		{Invoice{}, []string{"InvoiceObject"}},
 	}
 	for _, c := range contract {
 		allowed := map[string]bool{}
