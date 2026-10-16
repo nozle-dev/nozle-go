@@ -2,9 +2,7 @@ package nozle
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
-	"reflect"
 	"testing"
 )
 
@@ -47,32 +45,5 @@ func TestInvoiceDownloadURL(t *testing.T) {
 	}
 	if u, err := c.InvoiceDownloadURL(context.Background(), "inv_2"); err != nil || u != "" {
 		t.Fatalf("generating: %q %v", u, err)
-	}
-}
-
-func TestPreviewInvoiceBodies(t *testing.T) {
-	var bodies []map[string]any
-	c := usageServer(t, func(w http.ResponseWriter, r *http.Request) {
-		var body map[string]any
-		_ = json.NewDecoder(r.Body).Decode(&body)
-		bodies = append(bodies, body)
-		_, _ = w.Write([]byte(`{"invoice":{"nozle_id":"preview"}}`))
-	})
-	ctx := context.Background()
-	if _, err := c.PreviewInvoice(ctx, PreviewInvoiceParams{CustomerID: "cus_1", SubscriptionIDs: []string{"sub_1"}}); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := c.PreviewInvoice(ctx, PreviewInvoiceParams{CustomerID: "cus_1", PlanCode: "pro", BillingTime: "anniversary"}); err != nil {
-		t.Fatal(err)
-	}
-	want := []map[string]any{
-		{"customer": map[string]any{"external_id": "cus_1"}, "subscriptions": map[string]any{"external_ids": []any{"sub_1"}}},
-		{"customer": map[string]any{"external_id": "cus_1"}, "plan_code": "pro", "billing_time": "anniversary"},
-	}
-	if !reflect.DeepEqual(bodies, want) {
-		t.Fatalf("bodies %v", bodies)
-	}
-	if _, err := c.PreviewInvoice(ctx, PreviewInvoiceParams{CustomerID: "cus_1"}); err == nil {
-		t.Fatal("expected a validation error")
 	}
 }

@@ -44,16 +44,6 @@ type ListInvoicesParams struct {
 	Page, PerPage                                         int
 }
 
-// PreviewInvoiceParams previews the next invoice of SubscriptionIDs, or, without them, the first
-// invoice of a new subscription to PlanCode.
-type PreviewInvoiceParams struct {
-	CustomerID      string
-	SubscriptionIDs []string
-	PlanCode        string
-	// BillingTime is calendar or anniversary, for a new subscription.
-	BillingTime string
-}
-
 // ListInvoices returns a customer's invoices, newest first.
 func (c *Client) ListInvoices(ctx context.Context, customerID string, p ListInvoicesParams) (InvoicePage, error) {
 	var out InvoicePage
@@ -106,34 +96,6 @@ func (c *Client) InvoiceDownloadURL(ctx context.Context, invoiceID string) (stri
 		return "", nil
 	}
 	return *out.Invoice.FileURL, nil
-}
-
-// PreviewInvoice computes what the next invoice would be, without saving it.
-func (c *Client) PreviewInvoice(ctx context.Context, p PreviewInvoiceParams) (Invoice, error) {
-	var out struct {
-		Invoice Invoice `json:"invoice"`
-	}
-	if err := c.invoiceCheck("preview_invoice", "customer_id", p.CustomerID); err != nil {
-		return out.Invoice, err
-	}
-	body := map[string]any{"customer": map[string]any{"external_id": p.CustomerID}}
-	switch {
-	case len(p.SubscriptionIDs) > 0:
-		subscriptions := map[string]any{"external_ids": p.SubscriptionIDs}
-		if p.PlanCode != "" {
-			subscriptions["plan_code"] = p.PlanCode
-		}
-		body["subscriptions"] = subscriptions
-	case p.PlanCode != "":
-		body["plan_code"] = p.PlanCode
-		if p.BillingTime != "" {
-			body["billing_time"] = p.BillingTime
-		}
-	default:
-		return out.Invoice, &ValidationError{"preview_invoice", "SubscriptionIDs or PlanCode required"}
-	}
-	err := c.request(ctx, "preview_invoice", http.MethodPost, true, "/api/v1/invoices/preview", body, &out, "")
-	return out.Invoice, err
 }
 
 func (c *Client) invoiceCheck(op, field, value string) error {

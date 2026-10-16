@@ -196,7 +196,7 @@ func (c *Client) endpoint(core bool) string {
 var repeatableOps = map[string]bool{
 	"track": true, "meter": true, "cost_events.track": true, "customers.upsert": true,
 	"usage.check": true, "preview_subscription_transition": true, "preview_subscription_change": true,
-	"invoice_download_url": true, "preview_invoice": true,
+	"invoice_download_url": true,
 }
 
 // request sends one call. With WithMaxRetries set it retries network errors, timeouts, 429 and 5xx,
