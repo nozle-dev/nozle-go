@@ -215,6 +215,76 @@
       "allowed"
     ]
   },
+  "CustomerChargeUsageObject": {
+    "properties": [
+      "amount_cents",
+      "amount_currency",
+      "charge",
+      "events_count",
+      "feature",
+      "filters",
+      "grouped_usage",
+      "presentation_breakdowns",
+      "pricing_unit_details",
+      "total_aggregated_units",
+      "units"
+    ],
+    "required": [
+      "amount_cents",
+      "amount_currency",
+      "charge",
+      "events_count",
+      "feature",
+      "total_aggregated_units",
+      "units"
+    ]
+  },
+  "CustomerProjectedUsageObject": {
+    "properties": [
+      "amount_cents",
+      "charges_usage",
+      "currency",
+      "from_datetime",
+      "invoice_id",
+      "issuing_date",
+      "projected_amount_cents",
+      "taxes_amount_cents",
+      "to_datetime",
+      "total_amount_cents"
+    ],
+    "required": [
+      "amount_cents",
+      "charges_usage",
+      "from_datetime",
+      "issuing_date",
+      "projected_amount_cents",
+      "taxes_amount_cents",
+      "to_datetime",
+      "total_amount_cents"
+    ]
+  },
+  "CustomerUsageObject": {
+    "properties": [
+      "amount_cents",
+      "charges_usage",
+      "currency",
+      "from_datetime",
+      "invoice_id",
+      "issuing_date",
+      "taxes_amount_cents",
+      "to_datetime",
+      "total_amount_cents"
+    ],
+    "required": [
+      "amount_cents",
+      "charges_usage",
+      "from_datetime",
+      "issuing_date",
+      "taxes_amount_cents",
+      "to_datetime",
+      "total_amount_cents"
+    ]
+  },
   "PlatformCanResponse": {
     "properties": [
       "allowed",

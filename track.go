@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"fmt"
 	"math"
-	"net/url"
 	"strconv"
 	"time"
 )
@@ -21,21 +20,9 @@ func (c *Client) Track(ctx context.Context, p TrackParams) error {
 	if err := required("track", "event", p.Event); err != nil {
 		return err
 	}
-	sub := p.SubscriptionID
-	if sub == "" {
-		var found struct {
-			Subscriptions []struct {
-				ExternalID string `json:"external_id"`
-			} `json:"subscriptions"`
-		}
-		q := url.Values{"external_customer_id": {p.CustomerID}, "status[]": {"active"}}
-		if err := c.request(ctx, "track.subscription_lookup", "GET", true, query("/api/v1/subscriptions", q), nil, &found, ""); err != nil {
-			return err
-		}
-		if len(found.Subscriptions) != 1 {
-			return &ValidationError{"track", "exactly one active subscription required; supply SubscriptionID"}
-		}
-		sub = found.Subscriptions[0].ExternalID
+	sub, err := c.subscriptionOrActive(ctx, "track", p.CustomerID, p.SubscriptionID)
+	if err != nil {
+		return err
 	}
 	id := p.TransactionID
 	if id == "" {
