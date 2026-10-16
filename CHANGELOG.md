@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- `ListAlerts`, `GetAlert`, `CreateAlert`, `UpdateAlert` and `DeleteAlert` manage subscription usage alerts and wallet balance alerts (`AlertTarget`).
 - `ListInvoices`, `GetInvoice`, `InvoiceDownloadURL` (the PDF URL, or `""` while it is generated) and `PreviewInvoice`.
 - `CurrentUsage`, `PastUsage` and `ProjectedUsage` read Core usage (`CustomerUsage`, `CustomerProjectedUsage`); an empty subscription ID uses the customer's one active subscription.
 - `Client.VerifyWebhook(ctx, body, header, hmacKey)` checks `X-Nozle-Signature` (`jwt`: Nozle's public key, read once with the secret key and cached; `hmac`: the signing secret) and returns a `WebhookEvent`, or a `*WebhookVerificationError` with a `Code`. `Client.WebhookHandler(hmacKey, onEvent)` is an `http.Handler` that answers 200, 400 for a forged request, or 500 when `onEvent` fails.
