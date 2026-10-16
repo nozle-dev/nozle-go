@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"sync"
 )
 
 // ChargeUsage is one charge's usage in a billing period.
@@ -86,6 +87,9 @@ func (c *Client) subscriptionOrActive(ctx context.Context, op, customerID, subsc
 	if subscriptionID != "" {
 		return subscriptionID, nil
 	}
+	if cached := c.subscriptions.get(customerID); cached != "" {
+		return cached, nil
+	}
 	var found struct {
 		Subscriptions []struct {
 			ExternalID string `json:"external_id"`
@@ -98,5 +102,39 @@ func (c *Client) subscriptionOrActive(ctx context.Context, op, customerID, subsc
 	if len(found.Subscriptions) != 1 {
 		return "", &ValidationError{op, "exactly one active subscription required; supply SubscriptionID"}
 	}
+	c.subscriptions.set(customerID, found.Subscriptions[0].ExternalID)
 	return found.Subscriptions[0].ExternalID, nil
+}
+
+// subscriptionCache remembers each customer's single active subscription so Track does not look
+// it up on every call. Calls that can change the active subscription forget the entry.
+type subscriptionCache struct {
+	mu    sync.Mutex
+	known map[string]string
+}
+
+func (s *subscriptionCache) get(customerID string) string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.known[customerID]
+}
+
+func (s *subscriptionCache) set(customerID, subscriptionID string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.known == nil {
+		s.known = map[string]string{}
+	}
+	s.known[customerID] = subscriptionID
+}
+
+// forget drops one customer, or every customer when customerID is empty.
+func (s *subscriptionCache) forget(customerID string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if customerID == "" {
+		s.known = nil
+		return
+	}
+	delete(s.known, customerID)
 }

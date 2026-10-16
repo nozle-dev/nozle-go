@@ -212,6 +212,41 @@ func TestClient_Track_resolvesSingleSubscription(t *testing.T) {
 	}
 }
 
+func TestClient_Track_cachesSubscriptionUntilItChanges(t *testing.T) {
+	lookups := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == "GET":
+			lookups++
+			w.Write([]byte(`{"subscriptions":[{"external_id":"sub-1"}]}`))
+		case r.Method == "DELETE":
+			w.Write([]byte(`{"subscription":{"external_id":"sub-1","status":"terminated"}}`))
+		default:
+			w.WriteHeader(201)
+		}
+	}))
+	defer srv.Close()
+	c := nozle.New("sk_test-key", nozle.WithBaseURL(srv.URL), nozle.WithEventsURL(srv.URL))
+	ctx := context.Background()
+	for i := 0; i < 2; i++ {
+		if err := c.Track(ctx, nozle.TrackParams{CustomerID: "cust-1", Event: "api_call"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if lookups != 1 {
+		t.Fatalf("want one lookup for two tracks, got %d", lookups)
+	}
+	if _, err := c.CancelSubscription(ctx, "cust-1", "sub-1", ""); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Track(ctx, nozle.TrackParams{CustomerID: "cust-1", Event: "api_call"}); err != nil {
+		t.Fatal(err)
+	}
+	if lookups != 2 {
+		t.Fatalf("want a fresh lookup after cancel, got %d", lookups)
+	}
+}
+
 func TestClient_Track_rejectsEmptyCustomerID(t *testing.T) {
 	c := nozle.New("sk_test-key")
 	err := c.Track(context.Background(), nozle.TrackParams{
