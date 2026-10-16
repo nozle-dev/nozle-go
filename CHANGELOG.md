@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- `ListInvoicesParams.PaymentOverdue` keeps only unpaid invoices past their due date.
 - `ListAlerts`, `GetAlert`, `CreateAlert`, `UpdateAlert` and `DeleteAlert` manage subscription usage alerts and wallet balance alerts (`AlertTarget`).
 - `ListInvoices`, `GetInvoice` and `InvoiceDownloadURL` (the PDF URL, or `""` while it is generated).
 - `CurrentUsage`, `PastUsage` and `ProjectedUsage` read Core usage (`CustomerUsage`, `CustomerProjectedUsage`); an empty subscription ID uses the customer's one active subscription.

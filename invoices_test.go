@@ -7,10 +7,11 @@ import (
 )
 
 func TestListAndGetInvoices(t *testing.T) {
+	overdue := true
 	c := usageServer(t, func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/core/api/v1/invoices":
-			want := map[string]string{"external_customer_id": "cus_1", "status": "finalized", "page": "2"}
+			want := map[string]string{"external_customer_id": "cus_1", "status": "finalized", "payment_overdue": "true", "page": "2"}
 			for k, v := range want {
 				if r.URL.Query().Get(k) != v {
 					t.Errorf("%s = %q", k, r.URL.Query().Get(k))
@@ -21,7 +22,7 @@ func TestListAndGetInvoices(t *testing.T) {
 			_, _ = w.Write([]byte(`{"invoice":{"nozle_id":"inv_1","customer":{"external_id":"cus_1"}}}`))
 		}
 	})
-	page, err := c.ListInvoices(context.Background(), "cus_1", ListInvoicesParams{Status: "finalized", Page: 2})
+	page, err := c.ListInvoices(context.Background(), "cus_1", ListInvoicesParams{Status: "finalized", PaymentOverdue: &overdue, Page: 2})
 	if err != nil || page.Invoices[0].Number != "INV-1" || page.Meta.TotalPages != 3 {
 		t.Fatalf("page %+v %v", page, err)
 	}

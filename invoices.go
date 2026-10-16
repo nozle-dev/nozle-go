@@ -41,7 +41,9 @@ type InvoicePage struct {
 // ListInvoicesParams filters ListInvoices. Empty fields are not sent; dates are inclusive YYYY-MM-DD.
 type ListInvoicesParams struct {
 	Status, PaymentStatus, IssuingDateFrom, IssuingDateTo string
-	Page, PerPage                                         int
+	// PaymentOverdue, when set, keeps only unpaid invoices past their due date (true) or the others.
+	PaymentOverdue *bool
+	Page, PerPage  int
 }
 
 // ListInvoices returns a customer's invoices, newest first.
@@ -55,6 +57,9 @@ func (c *Client) ListInvoices(ctx context.Context, customerID string, p ListInvo
 		if value != "" {
 			q.Set(name, value)
 		}
+	}
+	if p.PaymentOverdue != nil {
+		q.Set("payment_overdue", strconv.FormatBool(*p.PaymentOverdue))
 	}
 	if p.Page > 0 {
 		q.Set("page", strconv.Itoa(p.Page))
