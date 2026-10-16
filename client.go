@@ -59,6 +59,7 @@ type Client struct {
 	httpClient                       *http.Client
 	usageTimestamps                  usageTimestampMemo
 	webhookKey                       webhookKeyCache
+	subscriptions                    subscriptionCache
 }
 
 func New(apiKey string, opts ...Option) *Client {

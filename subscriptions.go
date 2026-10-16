@@ -41,6 +41,7 @@ func (c *Client) Checkout(ctx context.Context, p CheckoutParams) (CheckoutResult
 		body["register_mandate"] = *p.RegisterMandate
 	}
 	err := c.request(ctx, "checkout", "POST", false, "/api/v1/checkout", body, &out, p.IdempotencyKey)
+	c.subscriptions.forget(customer) // the paid or scheduled change may replace the active subscription
 	return out, err
 }
 func (c *Client) CheckoutInvoice(ctx context.Context, invoiceID, key string) (CheckoutResult, error) {
@@ -52,6 +53,7 @@ func (c *Client) CheckoutInvoice(ctx context.Context, invoiceID, key string) (Ch
 		return out, err
 	}
 	err := c.request(ctx, "checkout_invoice", "POST", false, "/api/v1/checkout", map[string]any{"invoice_id": invoiceID}, &out, key)
+	c.subscriptions.forget("") // an invoice carries no customer id here, so drop every entry
 	return out, err
 }
 func (c *Client) CheckoutStatus(ctx context.Context, checkoutID string, scope CheckoutScope) (CheckoutStatus, error) {
@@ -64,6 +66,9 @@ func (c *Client) CheckoutStatus(ctx context.Context, checkoutID string, scope Ch
 		return out, err
 	}
 	err = c.request(ctx, "checkout_status", "GET", false, query("/api/v1/checkout/"+segment(checkoutID), q), nil, &out, "")
+	if scope.CustomerID != "" {
+		c.subscriptions.forget(scope.CustomerID) // payment may have activated a new subscription
+	}
 	return out, err
 }
 func (c *Client) VerifyCheckout(ctx context.Context, checkoutID string, v RazorpayVerification, scope CheckoutScope) (CheckoutStatus, error) {
@@ -78,6 +83,9 @@ func (c *Client) VerifyCheckout(ctx context.Context, checkoutID string, v Razorp
 		}
 	}
 	err = c.request(ctx, "verify_checkout", "POST", false, query("/api/v1/checkout/"+segment(checkoutID)+"/verify", q), v, &out, "")
+	if scope.CustomerID != "" {
+		c.subscriptions.forget(scope.CustomerID)
+	}
 	return out, err
 }
 func (s CheckoutScope) values() (url.Values, error) {
@@ -95,6 +103,7 @@ func (c *Client) Subscribe(ctx context.Context, p SubscribeParams) (SubscribeRes
 		return out, err
 	}
 	err := c.request(ctx, "subscribe", "POST", false, "/api/v1/subscribe", map[string]any{"customer_id": p.CustomerID, "plan_code": p.PlanCode}, &out, "")
+	c.subscriptions.forget(p.CustomerID)
 	if err == nil && out.Subscription.ExternalID != "" {
 		out.SubscriptionID = out.Subscription.ExternalID
 		out.Status = out.Subscription.Status
@@ -111,6 +120,7 @@ func (c *Client) CancelSubscription(ctx context.Context, customer, subscription,
 	}
 	q := url.Values{"customer_id": {customer}, "cancellation_policy": {policy}}
 	err := c.request(ctx, "cancel_subscription", "DELETE", false, query("/api/v1/subscriptions/"+segment(subscription), q), nil, &out, "")
+	c.subscriptions.forget(customer)
 	if err == nil && out.Subscription.ExternalID != "" {
 		out.SubscriptionID = out.Subscription.ExternalID
 		out.Status = out.Subscription.Status
@@ -149,6 +159,7 @@ func (c *Client) ApplySubscriptionTransition(ctx context.Context, p Subscription
 		return out, err
 	}
 	err := c.request(ctx, "apply_subscription_transition", "POST", false, "/api/v1/subscriptions/transitions", p, &out, key)
+	c.subscriptions.forget(p.CustomerID)
 	return out, err
 }
 func (c *Client) WithdrawPendingSubscriptionChange(ctx context.Context, customer, subscription, pending, key string) (WithdrawResult, error) {

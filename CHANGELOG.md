@@ -29,6 +29,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- `Track`, `CurrentUsage` and `PastUsage` without a subscription ID look up the customer's active subscription once and remember it, as the Node and Python SDKs do. `Checkout`, `CheckoutInvoice`, `CheckoutStatus`, `VerifyCheckout`, `Subscribe`, `CancelSubscription` and `ApplySubscriptionTransition` forget it, so the next call looks it up again.
 - Usage events recorded by `WrapOpenAIHTTPClient`, `WrapAnthropicHTTPClient`, `CaptureOpenAIUsage`, `CaptureAnthropicUsage` and the new capture use the provider's response id as the transaction id (`llm-<format>-<id>`) when there is one and no `TransactionID` is set, so the same response is never recorded twice. `ProviderCapture.ProviderHost` is sent as `provider_host`.
 
 ### Fixed
