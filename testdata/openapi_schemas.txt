@@ -12,7 +12,6 @@ CreditsEntityBalance
 CreditsEntityBalanceList
 BillingSubscriptionOptionsResponse
 CustomerUsageObject
-CustomerProjectedUsageObject
 CustomerChargeUsageObject
 InvoiceObject
 CreditsEntityOperationPage

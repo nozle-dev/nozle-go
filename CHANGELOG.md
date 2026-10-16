@@ -11,7 +11,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `ListInvoicesParams.PaymentOverdue` keeps only unpaid invoices past their due date.
 - `ListAlerts`, `GetAlert`, `CreateAlert`, `UpdateAlert` and `DeleteAlert` manage subscription usage alerts and wallet balance alerts (`AlertTarget`).
 - `ListInvoices`, `GetInvoice` and `InvoiceDownloadURL` (the PDF URL, or `""` while it is generated).
-- `CurrentUsage`, `PastUsage` and `ProjectedUsage` read Core usage (`CustomerUsage`, `CustomerProjectedUsage`); an empty subscription ID uses the customer's one active subscription.
+- `CurrentUsage` and `PastUsage` read Core usage (`CustomerUsage`); an empty subscription ID uses the customer's one active subscription.
 - `Client.VerifyWebhook(ctx, body, header, hmacKey)` checks `X-Nozle-Signature` (`jwt`: Nozle's public key, read once with the secret key and cached; `hmac`: the signing secret) and returns a `WebhookEvent`, or a `*WebhookVerificationError` with a `Code`. `Client.WebhookHandler(hmacKey, onEvent)` is an `http.Handler` that answers 200, 400 for a forged request, or 500 when `onEvent` fails.
 - `New` reads the `NOZLE_SECRET_KEY` environment variable when the key argument is blank. It still panics when both are blank. An explicit key is used as before.
 - `WithHost` option (default `https://api.nozle.app`). It fills in the Engine URL (`host/engine`) and Core URL (`host/core`) when `WithBaseURL` and `WithEventsURL` are not given. Those two keep their meaning and win over `WithHost`.

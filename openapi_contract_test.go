@@ -40,7 +40,6 @@ func TestResponseStructsMatchTheOpenAPISchemas(t *testing.T) {
 		{EntityCreditBalances{}, []string{"CreditsEntityBalanceList"}},
 		{SubscriptionOptions{}, []string{"BillingSubscriptionOptionsResponse"}},
 		{CustomerUsage{}, []string{"CustomerUsageObject"}},
-		{CustomerProjectedUsage{}, []string{"CustomerProjectedUsageObject"}},
 		{ChargeUsage{}, []string{"CustomerChargeUsageObject"}},
 		{Invoice{}, []string{"InvoiceObject"}},
 	}

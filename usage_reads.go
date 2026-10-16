@@ -39,13 +39,6 @@ type CustomerUsage struct {
 	ChargesUsage     []ChargeUsage `json:"charges_usage"`
 }
 
-// CustomerProjectedUsage is this period's usage with ProjectedAmountCents, an estimate for the
-// whole period from the usage so far.
-type CustomerProjectedUsage struct {
-	CustomerUsage
-	ProjectedAmountCents int64 `json:"projected_amount_cents"`
-}
-
 // CurrentUsage returns the customer's usage in the current billing period. With an empty
 // subscriptionID the customer's one active subscription is used.
 func (c *Client) CurrentUsage(ctx context.Context, customerID, subscriptionID string) (CustomerUsage, error) {
@@ -68,16 +61,6 @@ func (c *Client) PastUsage(ctx context.Context, customerID, subscriptionID strin
 	}
 	err := c.usageRead(ctx, "past_usage", customerID, subscriptionID, extra, &out)
 	return out.Periods, err
-}
-
-// ProjectedUsage returns this period's usage with its projection. Core answers 403
-// projected_usage_not_enabled unless projected usage is turned on for the organization.
-func (c *Client) ProjectedUsage(ctx context.Context, customerID, subscriptionID string) (CustomerProjectedUsage, error) {
-	var out struct {
-		Usage CustomerProjectedUsage `json:"customer_projected_usage"`
-	}
-	err := c.usageRead(ctx, "projected_usage", customerID, subscriptionID, nil, &out)
-	return out.Usage, err
 }
 
 func (c *Client) usageRead(ctx context.Context, route, customerID, subscriptionID string, extra url.Values, out any) error {
