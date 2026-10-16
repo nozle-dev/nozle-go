@@ -58,6 +58,7 @@ type Client struct {
 	timeout                          time.Duration
 	httpClient                       *http.Client
 	usageTimestamps                  usageTimestampMemo
+	webhookKey                       webhookKeyCache
 }
 
 func New(apiKey string, opts ...Option) *Client {

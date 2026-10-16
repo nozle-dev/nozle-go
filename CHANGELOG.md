@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- `Client.VerifyWebhook(ctx, body, header, hmacKey)` checks `X-Nozle-Signature` (`jwt`: Nozle's public key, read once with the secret key and cached; `hmac`: the signing secret) and returns a `WebhookEvent`, or a `*WebhookVerificationError` with a `Code`. `Client.WebhookHandler(hmacKey, onEvent)` is an `http.Handler` that answers 200, 400 for a forged request, or 500 when `onEvent` fails.
 - `New` reads the `NOZLE_SECRET_KEY` environment variable when the key argument is blank. It still panics when both are blank. An explicit key is used as before.
 - `WithHost` option (default `https://api.nozle.app`). It fills in the Engine URL (`host/engine`) and Core URL (`host/core`) when `WithBaseURL` and `WithEventsURL` are not given. Those two keep their meaning and win over `WithHost`.
 - Opt-in retries: `WithMaxRetries(n)` (default 0, no retries) and `WithRetryDelay(d)` (default 500ms, doubling up to 10 seconds, or the `Retry-After` header when sent). Network errors, timeouts, `429` and `5xx` are retried, only for calls that are safe to repeat: reads, calls with an idempotency key (such as `TrackUsage`), `Track`, `Meter`, `TrackCostEvent`, ``UpsertCustomer`, and the read-only `CheckUsage` and transition previews. `Subscribe`, `Checkout` and other writes without a key are never retried. `WithTimeout` applies to each attempt.
