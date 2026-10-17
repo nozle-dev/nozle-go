@@ -4,7 +4,7 @@ All notable changes to the nozle-go SDK will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [0.12.0] - unreleased
 
 ### Added
 
@@ -12,16 +12,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `ListAlerts`, `GetAlert`, `CreateAlert`, `UpdateAlert` and `DeleteAlert` manage subscription usage alerts and wallet balance alerts (`AlertTarget`).
 - `ListInvoices`, `GetInvoice` and `InvoiceDownloadURL` (the PDF URL, or `""` while it is generated).
 - `CurrentUsage` and `PastUsage` read Core usage (`CustomerUsage`); an empty subscription ID uses the customer's one active subscription.
-- `Client.VerifyWebhook(ctx, body, header, hmacKey)` checks `X-Nozle-Signature` (`jwt`: Nozle's public key, read once with the secret key and cached; `hmac`: the signing secret) and returns a `WebhookEvent`, or a `*WebhookVerificationError` with a `Code`. `Client.WebhookHandler(hmacKey, onEvent)` is an `http.Handler` that answers 200, 400 for a forged request, or 500 when `onEvent` fails.
+- `Client.VerifyWebhook(ctx, body, header, hmacKey)` checks `X-Nozle-Signature` (`jwt`: Nozle's public key, read once with the secret key and cached; `hmac`: the signing secret) and returns a `WebhookEvent`, or a `*WebhookVerificationError` with a `Code`. `Client.WebhookHandler(hmacKey, onEvent)` is an `http.Handler` that answers 200, 400 for a request that is not genuine, 405 for a method other than POST, or 500 when `onEvent` fails or Nozle's public key cannot be read.
 - `New` reads the `NOZLE_SECRET_KEY` environment variable when the key argument is blank. It still panics when both are blank. An explicit key is used as before.
 - `WithHost` option (default `https://api.nozle.app`). It fills in the Engine URL (`host/engine`) and Core URL (`host/core`) when `WithBaseURL` and `WithEventsURL` are not given. Those two keep their meaning and win over `WithHost`.
-- Opt-in retries: `WithMaxRetries(n)` (default 0, no retries) and `WithRetryDelay(d)` (default 500ms, doubling up to 10 seconds, or the `Retry-After` header when sent). Network errors, timeouts, `429` and `5xx` are retried, only for calls that are safe to repeat: reads, calls with an idempotency key (such as `TrackUsage`), `Track`, `Meter`, `TrackCostEvent`, ``UpsertCustomer`, and the read-only `CheckUsage` and transition previews. `Subscribe`, `Checkout` and other writes without a key are never retried. `WithTimeout` applies to each attempt.
+- Opt-in retries: `WithMaxRetries(n)` (default 0, no retries) and `WithRetryDelay(d)` (default 500ms, doubling with jitter up to 10 seconds, or the `Retry-After` header when sent, at most 30 seconds). Network errors, timeouts, `429` and `5xx` are retried, only for calls that are safe to repeat: reads, calls with an idempotency key (such as `TrackUsage`), `Track`, `Meter`, `TrackCostEvent`, `UpsertCustomer`, `InvoiceDownloadURL`, and the read-only `CheckUsage`, `PreviewSubscriptionChange` and `PreviewSubscriptionTransition`. `Subscribe`, `Checkout` and other writes without a key are never retried. `WithTimeout` applies to each attempt.
 - `APIError.RequestID` (the `X-Request-Id` response header, which Core sends and the Engine does not yet) and `APIError.RetryAfter` (a `time.Duration` from `Retry-After`, as seconds or an HTTP date). Both are empty or zero when the service did not send them. The message is unchanged.
 - A contract test (`openapi_contract_test.go`) checks that response structs declare only JSON keys the API schema has. `scripts/sync_openapi_contract.py` refreshes `testdata/openapi_schemas.json` from `nozle-openapi.yaml`.
 - A request contract test (`request_contract_test.go`) checks the body of SDK calls against the API request schema: no unknown key, no `null` where it is not allowed, enum values only. `scripts/sync_openapi_requests.py` refreshes `testdata/openapi_requests.json` from `nozle-openapi.yaml`.
 - `WrapHTTPClient` reports once per event code, through `OnError`, a `*SetupError` with `Code == "feature_not_found"` when no Feature has the event code: the usage is stored but not billed. Recording is not blocked.
-- `WrapHTTPClient(providerClient, nozleClient, CaptureOptions{...})` returns an `*http.Client` that records the token usage of every successful LLM response it carries, for any LLM SDK that takes an HTTP client or for your own requests. Usage is recognised by the response shape: OpenAI-compatible `usage` (any OpenAI-compatible API, including the Responses API), Anthropic `usage` and Gemini `usageMetadata`, for JSON responses and streams. Chat completion streams are asked for usage (`stream_options.include_usage`; `SkipStreamUsage` turns it off). The customer comes from the `X-Nozle-Customer-Id` request header (not sent to the provider), `WithCustomer(ctx, id)` on the request context, `CustomerIDFunc`, or `CustomerID`. Recording never changes or fails the provider response; failures go to `OnError`.
-- `RecordUsage(ctx, ProviderCapture, Usage)` records usage your code read itself.
+- `WrapHTTPClient(providerClient, nozleClient, CaptureOptions{...})` returns an `*http.Client` (and an error when `nozleClient` is nil) that records the token usage of every successful LLM response it carries, for any LLM SDK that takes an HTTP client or for your own requests. Usage is recognised by the response shape: OpenAI-compatible `usage` (any OpenAI-compatible API, including the Responses API), Anthropic `usage` and Gemini `usageMetadata`, for JSON responses and streams. Chat completion streams are asked for usage (`stream_options.include_usage`; `SkipStreamUsage` turns it off). The customer comes from the `X-Nozle-Customer-Id` request header (not sent to the provider), `WithCustomer(ctx, id)` on the request context, `CustomerIDFunc`, or `CustomerID`. Recording never changes or fails the provider response; failures go to `OnError`.
+- `Client.RecordUsage(ctx, ProviderCapture, Usage)` records usage your code read itself.
 
 ### Breaking
 
@@ -29,19 +29,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
-- `Track`, `CurrentUsage` and `PastUsage` without a subscription ID look up the customer's active subscription once and remember it, as the Node and Python SDKs do. `Checkout`, `CheckoutInvoice`, `CheckoutStatus`, `VerifyCheckout`, `Subscribe`, `CancelSubscription` and `ApplySubscriptionTransition` forget it, so the next call looks it up again.
+- `Track`, `CurrentUsage` and `PastUsage` without a subscription ID look up the customer's active subscription once and remember it, as the Node and Python SDKs do. `Checkout`, `CheckoutInvoice`, `CheckoutStatus`, `VerifyCheckout`, `Subscribe`, `CancelSubscription` and `ApplySubscriptionTransition` forget it, so the next call looks it up again. The entry lasts for the life of the `Client`: a subscription change made elsewhere (the dashboard, another process) is not seen, so pass the subscription ID when that matters.
 - Usage events recorded by `WrapOpenAIHTTPClient`, `WrapAnthropicHTTPClient`, `CaptureOpenAIUsage`, `CaptureAnthropicUsage` and the new capture use the provider's response id as the transaction id (`llm-<format>-<id>`) when there is one and no `TransactionID` is set, so the same response is never recorded twice. `ProviderCapture.ProviderHost` is sent as `provider_host`.
 
 ### Fixed
 
 - `TrackUsage` reuses the timestamp it filled in when the same idempotency key is sent again on the same client, so a retry no longer fails with 409 `idempotency_key_reused`. The client remembers the last 1000 keys; a retry from another process or after a restart must pass `Timestamp`.
-- Every request leaves out fields that are `null` or an empty string, at any depth, so an optional field you did not set is not sent and the API applies its default. Event `properties` and `metadata` are your own data and are sent unchanged.
+- Every request leaves out fields that are `null` or an empty string, at any depth, so an optional field you did not set is not sent and the API applies its default. A field can no longer be cleared by sending `""` or `null`. Event `properties` and `metadata` are your own data and are sent unchanged.
 - `CheckoutEntitySubscription`, `ChangeEntitySubscriptionPlan` and `CheckoutEntitySubscriptions` leave out `return_url` and `billing_time` when they are empty instead of sending `""`, which is not a valid `billing_time`. `ChangeEntitySubscriptionPlan` now sends `BillingTime` when set; it used to drop it. `CheckoutEntitySubscriptions` rejects a `billingTime` other than `calendar` or `anniversary` before sending.
 
 ## [0.11.0] - 2026-10-14
 
 ### Added
-- `Customer.BillingConfiguration` (`CustomerBillingConfiguration`) is sent as Core's `billing_configuration` by ``UpsertCustomer`, so a customer can be linked to an existing Stripe customer in the same call. It is decoded from responses too. Upserts without it send the same body as before.
+- `Customer.BillingConfiguration` (`CustomerBillingConfiguration`) is sent as Core's `billing_configuration` by `UpsertCustomer`, so a customer can be linked to an existing Stripe customer in the same call. It is decoded from responses too. Upserts without it send the same body as before.
 
 ## [0.10.0] - 2026-10-13
 

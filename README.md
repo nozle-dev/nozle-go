@@ -14,7 +14,7 @@ The module path is `github.com/nozle-dev/nozle-go`.
 
 ## Authentication and setup
 
-Keep a secret `sk_` key on your backend. A `pk_` key may list plans; every protected customer, billing, event, Entity, credit, usage, and margin operation requires `sk_`. `New` rejects an empty key. For browser requests, authenticate the user in your application and derive the Nozle customer ID on your backend. Do not trust a customer ID supplied by the browser.
+Keep a secret `sk_` key on your backend. A `pk_` key may list plans; every protected customer, billing, event, Entity, credit, usage, and margin operation requires `sk_`. With an empty key, `New` reads the `NOZLE_SECRET_KEY` environment variable and panics when that is empty too. For browser requests, authenticate the user in your application and derive the Nozle customer ID on your backend. Do not trust a customer ID supplied by the browser.
 
 ```go
 ctx := context.Background()
@@ -26,12 +26,11 @@ _ = plans
 
 Import `nozle "github.com/nozle-dev/nozle-go"` and the Go standard library packages used by each snippet. Snippets below assume `ctx` and `client` are defined as above. The [runnable basic example](examples/basic/README.md) reads Engine and Core using environment variables.
 
-The default URLs are Engine `https://api.nozle.app/engine` and Core `https://api.nozle.app/core`. Overrides are independent. For a local stack:
+The default host is `https://api.nozle.app` (Engine `/engine`, Core `/core`). `WithHost` moves both; `WithBaseURL` and `WithEventsURL` set one each and win over `WithHost`. For a local stack:
 
 ```go
 client := nozle.New(os.Getenv("NOZLE_SECRET_KEY"),
-    nozle.WithBaseURL("http://localhost:8888/engine"),
-    nozle.WithEventsURL("http://localhost:8888/core"),
+    nozle.WithHost("http://localhost:8888"),
     nozle.WithTimeout(15*time.Second),
 )
 ```
