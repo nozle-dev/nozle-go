@@ -4,7 +4,7 @@ All notable changes to the nozle-go SDK will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [0.12.0] - unreleased
+## [0.12.0] - 2026-10-17
 
 ### Added
 
