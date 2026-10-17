@@ -7,10 +7,19 @@ import (
 )
 
 // ProviderCapture describes a completed provider call. It contains usage metadata only.
+// ProviderHost is the host the provider request went to, for example "openrouter.ai".
 type ProviderCapture struct {
 	CustomerID, SubscriptionID, FeatureCode, Feature, CostMeterCode, Model, RequestID, TransactionID string
+	ProviderHost                                                                                     string
 	Latency                                                                                          time.Duration
 	Timestamp                                                                                        time.Time
+}
+
+// Usage is one LLM call's token usage, for RecordUsage. InputTokens counts all input, including
+// cached input and cache writes; OutputTokens counts all output, including reasoning tokens.
+type Usage struct {
+	Provider                                                                        string
+	InputTokens, OutputTokens, CachedInputTokens, CacheWriteTokens, ReasoningTokens int
 }
 type OpenAIUsage struct{ PromptTokens, CompletionTokens, CachedInputTokens, ReasoningTokens int }
 type AnthropicUsage struct{ InputTokens, CachedInputTokens, CacheWriteTokens, OutputTokens int }
@@ -23,6 +32,10 @@ func (c *Client) captureProvider(ctx context.Context, provider string, p Provide
 	if p.FeatureCode == "" {
 		p.FeatureCode = "llm_tokens"
 	}
+	if p.TransactionID == "" && p.RequestID != "" {
+		// The provider's response id makes the event id stable, so a response is recorded once.
+		p.TransactionID = "llm-" + provider + "-" + p.RequestID
+	}
 	if p.TransactionID == "" {
 		p.TransactionID = generateUUID()
 	}
@@ -30,6 +43,12 @@ func (c *Client) captureProvider(ctx context.Context, provider string, p Provide
 		p.Timestamp = time.Now().UTC()
 	}
 	properties := map[string]any{"provider": provider, "model": p.Model, "input_tokens": input, "output_tokens": output, "latency_ms": p.Latency.Milliseconds()}
+	if provider == "" {
+		delete(properties, "provider")
+	}
+	if p.ProviderHost != "" {
+		properties["provider_host"] = p.ProviderHost
+	}
 	if p.Feature != "" {
 		properties["feature"] = p.Feature
 	}
@@ -66,4 +85,18 @@ func (c *Client) CaptureAnthropicUsage(ctx context.Context, p ProviderCapture, u
 	cacheWrite := max(u.CacheWriteTokens, 0)
 	output := max(u.OutputTokens, 0)
 	return c.captureProvider(ctx, "anthropic", p, input+cached+cacheWrite, output, []tokenCategory{{"input", input}, {"cached_input", cached}, {"cache_write", cacheWrite}, {"output", output}})
+}
+
+// RecordUsage records one LLM call's token usage that your code read itself, with optional
+// categorized cost events. Recording the same RequestID twice records one event.
+func (c *Client) RecordUsage(ctx context.Context, p ProviderCapture, u Usage) error {
+	if p.CustomerID == "" {
+		return &ValidationError{"record_usage", "customer ID is required"}
+	}
+	input := max(u.InputTokens, 0)
+	output := max(u.OutputTokens, 0)
+	cached := min(max(u.CachedInputTokens, 0), input)
+	cacheWrite := min(max(u.CacheWriteTokens, 0), input-cached)
+	reasoning := min(max(u.ReasoningTokens, 0), output)
+	return c.captureProvider(ctx, u.Provider, p, input, output, []tokenCategory{{"input", input - cached - cacheWrite}, {"cached_input", cached}, {"cache_write", cacheWrite}, {"output", output - reasoning}, {"reasoning", reasoning}})
 }

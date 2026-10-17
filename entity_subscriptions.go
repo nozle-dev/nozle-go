@@ -40,8 +40,12 @@ func (c *Client) entityChange(ctx context.Context, action, customer, entity stri
 	if p.BillingTime != "" && p.BillingTime != "calendar" && p.BillingTime != "anniversary" {
 		return out, &ValidationError{"entity subscription", "invalid billing time"}
 	}
-	body := map[string]any{"plan_code": p.PlanCode, "return_url": p.ReturnURL}
-	if action == "checkout" {
+	// Optional fields that are not set are left out, so the API applies its defaults.
+	body := map[string]any{"plan_code": p.PlanCode}
+	if p.ReturnURL != "" {
+		body["return_url"] = p.ReturnURL
+	}
+	if p.BillingTime != "" {
 		body["billing_time"] = p.BillingTime
 	}
 	if p.RegisterMandate != nil {
@@ -66,7 +70,17 @@ func (c *Client) CheckoutEntitySubscriptions(ctx context.Context, customer strin
 	if len(items) < 1 || len(items) > 100 {
 		return EntitySubscriptionCheckoutManyResult{}, &ValidationError{"entity_subscriptions.checkout_many", "requires 1-100 items"}
 	}
-	body := map[string]any{"entity_subscription_checkout": map[string]any{"items": items, "return_url": returnURL, "billing_time": billingTime}}
+	if billingTime != "" && billingTime != "calendar" && billingTime != "anniversary" {
+		return EntitySubscriptionCheckoutManyResult{}, &ValidationError{"entity_subscriptions.checkout_many", "invalid billing time"}
+	}
+	checkout := map[string]any{"items": items}
+	if returnURL != "" {
+		checkout["return_url"] = returnURL
+	}
+	if billingTime != "" {
+		checkout["billing_time"] = billingTime
+	}
+	body := map[string]any{"entity_subscription_checkout": checkout}
 	err := c.request(ctx, "entity_subscriptions.checkout_many", "POST", true, customerPath(customer)+"/entity-subscriptions/checkout", body, &out, key)
 	return out.EntitySubscriptionCheckout, err
 }

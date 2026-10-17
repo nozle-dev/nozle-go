@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	nozle "github.com/nozle-dev/nozle-go"
 )
@@ -57,7 +58,7 @@ func TestClient_Ping(t *testing.T) {
 			t.Errorf("want Authorization: Bearer sk_test-key, got %s", got)
 		}
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"ok":true,"org_id":"org-1","key_type":"live","env":"production"}`))
+		w.Write([]byte(`{"ok":true,"engine":"ok"}`))
 	}))
 	defer srv.Close()
 
@@ -69,14 +70,8 @@ func TestClient_Ping(t *testing.T) {
 	if !result.OK {
 		t.Error("expected ok=true")
 	}
-	if result.OrgID != "org-1" {
-		t.Errorf("want org_id=org-1, got %s", result.OrgID)
-	}
-	if result.KeyType != "live" {
-		t.Errorf("want key_type=live, got %s", result.KeyType)
-	}
-	if result.Env != "production" {
-		t.Errorf("want env=production, got %s", result.Env)
+	if result.Engine != "ok" {
+		t.Errorf("want engine=ok, got %s", result.Engine)
 	}
 }
 
@@ -214,6 +209,41 @@ func TestClient_Track_resolvesSingleSubscription(t *testing.T) {
 	}
 	if calls != 2 {
 		t.Fatalf("want lookup + event, got %d calls", calls)
+	}
+}
+
+func TestClient_Track_cachesSubscriptionUntilItChanges(t *testing.T) {
+	lookups := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == "GET":
+			lookups++
+			w.Write([]byte(`{"subscriptions":[{"external_id":"sub-1"}]}`))
+		case r.Method == "DELETE":
+			w.Write([]byte(`{"subscription":{"external_id":"sub-1","status":"terminated"}}`))
+		default:
+			w.WriteHeader(201)
+		}
+	}))
+	defer srv.Close()
+	c := nozle.New("sk_test-key", nozle.WithBaseURL(srv.URL), nozle.WithEventsURL(srv.URL))
+	ctx := context.Background()
+	for i := 0; i < 2; i++ {
+		if err := c.Track(ctx, nozle.TrackParams{CustomerID: "cust-1", Event: "api_call"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if lookups != 1 {
+		t.Fatalf("want one lookup for two tracks, got %d", lookups)
+	}
+	if _, err := c.CancelSubscription(ctx, "cust-1", "sub-1", ""); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Track(ctx, nozle.TrackParams{CustomerID: "cust-1", Event: "api_call"}); err != nil {
+		t.Fatal(err)
+	}
+	if lookups != 2 {
+		t.Fatalf("want a fresh lookup after cancel, got %d", lookups)
 	}
 }
 
@@ -451,5 +481,179 @@ func TestClient_debugMode(t *testing.T) {
 	_, err := c.Ping(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestClient_APIError_requestIDAndRetryAfter(t *testing.T) {
+	for _, tc := range []struct {
+		name, retryAfter string
+		wantMin, wantMax time.Duration
+	}{
+		{"seconds", "30", 30 * time.Second, 30 * time.Second},
+		{"date", time.Now().Add(20 * time.Second).UTC().Format(http.TimeFormat), time.Second, 20 * time.Second},
+		{"invalid", "soon", 0, 0},
+		{"absent", "", 0, 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("X-Request-Id", "req-1")
+				if tc.retryAfter != "" {
+					w.Header().Set("Retry-After", tc.retryAfter)
+				}
+				w.WriteHeader(http.StatusServiceUnavailable)
+			}))
+			defer srv.Close()
+			_, err := nozle.New("sk_test-key", nozle.WithBaseURL(srv.URL)).Plans(context.Background())
+			var apiErr *nozle.APIError
+			if !nozle.AsAPIError(err, &apiErr) {
+				t.Fatal("expected APIError")
+			}
+			if apiErr.RequestID != "req-1" {
+				t.Errorf("RequestID = %q", apiErr.RequestID)
+			}
+			if apiErr.RetryAfter < tc.wantMin || apiErr.RetryAfter > tc.wantMax {
+				t.Errorf("RetryAfter = %v, want between %v and %v", apiErr.RetryAfter, tc.wantMin, tc.wantMax)
+			}
+		})
+	}
+}
+
+func retryServer(t *testing.T, statuses ...int) (*httptest.Server, *int) {
+	t.Helper()
+	calls := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		status := statuses[min(calls, len(statuses)-1)]
+		calls++
+		w.WriteHeader(status)
+		if status == 200 {
+			w.Write([]byte(`{"plans":[]}`))
+		}
+	}))
+	t.Cleanup(srv.Close)
+	return srv, &calls
+}
+
+func TestRetries_offByDefault(t *testing.T) {
+	srv, calls := retryServer(t, 503)
+	_, err := nozle.New("sk_test-key", nozle.WithBaseURL(srv.URL)).Plans(context.Background())
+	if err == nil || *calls != 1 {
+		t.Fatalf("err = %v, calls = %d", err, *calls)
+	}
+}
+
+func TestRetries_aReadIsRetriedUntilItSucceeds(t *testing.T) {
+	srv, calls := retryServer(t, 503, 429, 500, 200)
+	c := nozle.New("sk_test-key", nozle.WithBaseURL(srv.URL), nozle.WithMaxRetries(3), nozle.WithRetryDelay(time.Millisecond))
+	if _, err := c.Plans(context.Background()); err != nil || *calls != 4 {
+		t.Fatalf("err = %v, calls = %d", err, *calls)
+	}
+}
+
+func TestRetries_stopAtMaxRetriesAndSkipA4xx(t *testing.T) {
+	srv, calls := retryServer(t, 500)
+	c := nozle.New("sk_test-key", nozle.WithBaseURL(srv.URL), nozle.WithMaxRetries(2), nozle.WithRetryDelay(time.Millisecond))
+	if _, err := c.Plans(context.Background()); err == nil || *calls != 3 {
+		t.Fatalf("err = %v, calls = %d", err, *calls)
+	}
+	srv, calls = retryServer(t, 422)
+	c = nozle.New("sk_test-key", nozle.WithBaseURL(srv.URL), nozle.WithMaxRetries(2), nozle.WithRetryDelay(time.Millisecond))
+	if _, err := c.Plans(context.Background()); err == nil || *calls != 1 {
+		t.Fatalf("err = %v, calls = %d", err, *calls)
+	}
+}
+
+func TestRetries_aWriteIsRetriedOnlyWhenItIsSafeToRepeat(t *testing.T) {
+	srv, calls := retryServer(t, 503)
+	c := nozle.New("sk_test-key", nozle.WithBaseURL(srv.URL), nozle.WithMaxRetries(2), nozle.WithRetryDelay(time.Millisecond))
+	_, _ = c.Subscribe(context.Background(), nozle.SubscribeParams{CustomerID: "cust", PlanCode: "pro"})
+	if *calls != 1 {
+		t.Fatalf("subscribe calls = %d, want 1", *calls)
+	}
+	*calls = 0
+	_, _ = c.TrackUsage(context.Background(), nozle.UsageParams{CustomerID: "c", FeatureCode: "f", Timestamp: "2026-10-15T10:00:00Z"}, "k1")
+	if *calls != 3 {
+		t.Fatalf("usage.track calls = %d, want 3", *calls)
+	}
+}
+
+func TestRetries_waitForRetryAfter(t *testing.T) {
+	calls := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		if calls == 1 {
+			w.Header().Set("Retry-After", "1")
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		w.Write([]byte(`{"plans":[]}`))
+	}))
+	defer srv.Close()
+	started := time.Now()
+	c := nozle.New("sk_test-key", nozle.WithBaseURL(srv.URL), nozle.WithMaxRetries(1), nozle.WithRetryDelay(time.Millisecond))
+	if _, err := c.Plans(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if waited := time.Since(started); waited < 900*time.Millisecond {
+		t.Fatalf("waited %v, want about 1s", waited)
+	}
+}
+
+func TestTrackUsage_reusesItsTimestampForARetriedKey(t *testing.T) {
+	var stamps []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		stamps = append(stamps, body["timestamp"].(string))
+		w.Write([]byte(`{"allowed":true}`))
+	}))
+	defer srv.Close()
+	c := nozle.New("sk_test-key", nozle.WithBaseURL(srv.URL))
+	p := nozle.UsageParams{CustomerID: "c", FeatureCode: "f"}
+	for _, key := range []string{"k1", "k1", "k2"} {
+		if _, err := c.TrackUsage(context.Background(), p, key); err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(2 * time.Millisecond)
+	}
+	p.Timestamp = "2026-01-01T00:00:00Z"
+	if _, err := c.TrackUsage(context.Background(), p, "k3"); err != nil {
+		t.Fatal(err)
+	}
+	if stamps[0] != stamps[1] || stamps[2] == stamps[0] || stamps[3] != "2026-01-01T00:00:00Z" {
+		t.Fatalf("timestamps = %v", stamps)
+	}
+}
+
+func TestEntitySubscriptionRequests_leaveOutUnsetOptionalFields(t *testing.T) {
+	var bodies []map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		bodies = append(bodies, body)
+		w.Write([]byte(`{"type":"completed","entity_subscription_checkout":{"id":"batch-1"}}`))
+	}))
+	defer srv.Close()
+	c := nozle.New("sk_test-key", nozle.WithEventsURL(srv.URL))
+	ctx := context.Background()
+
+	_, _ = c.CheckoutEntitySubscription(ctx, "cust", "user-42", nozle.EntitySubscriptionChange{PlanCode: "pro"})
+	_, _ = c.ChangeEntitySubscriptionPlan(ctx, "cust", "user-42", nozle.EntitySubscriptionChange{PlanCode: "team", BillingTime: "calendar"})
+	_, _ = c.CheckoutEntitySubscriptions(ctx, "cust", []nozle.EntitySubscriptionCheckoutItem{{ExternalEntityID: "user-42", PlanCode: "pro"}}, "", "", "batch-1")
+
+	if len(bodies) != 3 {
+		t.Fatalf("requests = %d", len(bodies))
+	}
+	if _, set := bodies[0]["billing_time"]; set || len(bodies[0]) != 1 {
+		t.Errorf("checkout body = %v, want only plan_code", bodies[0])
+	}
+	if bodies[1]["billing_time"] != "calendar" {
+		t.Errorf("change-plan body = %v, want billing_time calendar", bodies[1])
+	}
+	batch := bodies[2]["entity_subscription_checkout"].(map[string]any)
+	if _, set := batch["billing_time"]; set {
+		t.Errorf("batch body = %v, want no billing_time", batch)
+	}
+	if _, set := batch["return_url"]; set {
+		t.Errorf("batch body = %v, want no return_url", batch)
 	}
 }

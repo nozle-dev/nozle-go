@@ -287,6 +287,9 @@ func (c *Client) TrackUsage(ctx context.Context, p UsageParams, key string) (Usa
 	if err := idem("usage.track", key); err != nil {
 		return out, err
 	}
+	if p.Timestamp == "" {
+		p.Timestamp = c.usageTimestamps.get(key)
+	}
 	err := c.request(ctx, "usage.track", "POST", false, "/api/v1/usage/track", usageBody(p, false), &out, key)
 	return out, err
 }
