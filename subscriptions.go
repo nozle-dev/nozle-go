@@ -56,6 +56,27 @@ func (c *Client) CheckoutInvoice(ctx context.Context, invoiceID, key string) (Ch
 	c.subscriptions.forget("") // an invoice carries no customer id here, so drop every entry
 	return out, err
 }
+
+// ManagePaymentMethod lets a customer add or replace their saved payment method.
+// Stripe: send the customer to URL. Razorpay: URL is empty; open Razorpay Checkout
+// from Checkout. Needs a secret key. returnURL and key may be empty.
+func (c *Client) ManagePaymentMethod(ctx context.Context, customerID, returnURL, key string) (ManagePaymentMethodResult, error) {
+	var out struct {
+		ManagePaymentMethod ManagePaymentMethodResult `json:"manage_payment_method"`
+	}
+	if err := validateKey(c.apiKey, "manage_payment_method"); err != nil {
+		return out.ManagePaymentMethod, err
+	}
+	if err := required("manage_payment_method", "customer_id", customerID); err != nil {
+		return out.ManagePaymentMethod, err
+	}
+	var body any
+	if returnURL != "" {
+		body = map[string]any{"return_url": returnURL}
+	}
+	err := c.request(ctx, "manage_payment_method", "POST", false, "/api/v1/customers/"+segment(customerID)+"/payment-method/manage", body, &out, key)
+	return out.ManagePaymentMethod, err
+}
 func (c *Client) CheckoutStatus(ctx context.Context, checkoutID string, scope CheckoutScope) (CheckoutStatus, error) {
 	var out CheckoutStatus
 	if err := validateKey(c.apiKey, "checkout_status"); err != nil {

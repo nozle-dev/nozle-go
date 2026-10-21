@@ -4,6 +4,12 @@ All notable changes to the nozle-go SDK will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.13.0] - 2026-10-22
+
+### Added
+
+- `Client.ManagePaymentMethod(ctx, customerID, returnURL, key)` lets a customer add or replace their saved payment method and returns `ManagePaymentMethodResult`. For Stripe, redirect the customer to `URL`; for Razorpay, `URL` is empty and `Checkout` holds the options to open Razorpay Checkout. Needs a secret key. Engine errors (`invalid_return_url`, `no_linked_payment_provider`, `provider_not_supported`, the Razorpay mandate errors) return `*APIError`.
+
 ## [0.12.0] - 2026-10-17
 
 ### Added
