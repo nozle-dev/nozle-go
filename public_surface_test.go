@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -100,5 +101,39 @@ func TestCustomTransportTimeoutAndPublicErrors(t *testing.T) {
 	var validation *nozle.ValidationError
 	if !errors.As(err, &validation) || !strings.Contains(validation.Error(), "both customer and subscription") {
 		t.Fatalf("scope accepted: %v", err)
+	}
+}
+
+func TestManagePaymentMethod(t *testing.T) {
+	var body string
+	var key string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "POST" || r.URL.EscapedPath() != "/api/v1/customers/cust%2F1/payment-method/manage" {
+			t.Errorf("wrong request: %s %s", r.Method, r.URL)
+		}
+		raw, _ := io.ReadAll(r.Body)
+		body, key = string(raw), r.Header.Get("Idempotency-Key")
+		if body == "" {
+			w.Write([]byte(`{"manage_payment_method":{"url":null,"expires_at":"2026-10-22T10:00:00Z","provider":"razorpay","checkout":{"checkout_id":"c1","order_id":"o1"}}}`))
+			return
+		}
+		w.Write([]byte(`{"manage_payment_method":{"url":"https://billing.stripe.com/x","expires_at":null,"provider":"stripe"}}`))
+	}))
+	defer server.Close()
+	client := nozle.New("sk_contract", nozle.WithBaseURL(server.URL))
+	ctx := context.Background()
+	got, err := client.ManagePaymentMethod(ctx, "cust/1", "https://app.example/back", "k1")
+	if err != nil || got.URL != "https://billing.stripe.com/x" || got.Provider != "stripe" || key != "k1" || body != `{"return_url":"https://app.example/back"}` {
+		t.Fatalf("stripe: %+v %v key=%q body=%q", got, err, key, body)
+	}
+	got, err = client.ManagePaymentMethod(ctx, "cust/1", "", "")
+	if err != nil || got.URL != "" || got.Checkout == nil || got.Checkout.OrderID != "o1" || body != "" {
+		t.Fatalf("razorpay: %+v %v body=%q", got, err, body)
+	}
+	if _, err := nozle.New("pk_browser", nozle.WithBaseURL(server.URL)).ManagePaymentMethod(ctx, "cust", "", ""); err == nil {
+		t.Fatal("publishable key accepted")
+	}
+	if _, err := client.ManagePaymentMethod(ctx, "", "", ""); err == nil {
+		t.Fatal("blank customer accepted")
 	}
 }
