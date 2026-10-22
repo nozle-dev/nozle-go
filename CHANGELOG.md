@@ -10,6 +10,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - `Client.ManagePaymentMethod(ctx, customerID, returnURL, key)` lets a Stripe customer add or replace their saved payment method and returns `ManagePaymentMethodResult` (`URL`, `ExpiresAt`, `Provider` "stripe"): redirect the customer to `URL`. Needs a secret key. Razorpay customers pay each invoice by payment link, so for them it returns a 422 `*APIError` where `HasCode("razorpay_pays_by_link")` is true. Other Engine errors (`invalid_return_url`, `no_linked_payment_provider`, `provider_not_supported`, `missing_payment_provider_customer`) also return `*APIError`.
 
+### Fixed
+
+- `Meter` writes the transaction ID it generates for an event without one back into the caller's slice (`events[i].TransactionID`) before the first attempt. Retrying with the same slice, after an error, a timeout or a cancelled context, now sends the same IDs, so Engine records each event once instead of billing it twice. Caller-provided IDs are kept. A new slice still gets new IDs.
+
 ## [0.12.0] - 2026-10-17
 
 ### Added
