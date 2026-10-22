@@ -15,3 +15,9 @@ CustomerUsageObject
 CustomerChargeUsageObject
 InvoiceObject
 CreditsEntityOperationPage
+PlanObject
+PlanVersion
+PlanVersionMigration
+PlanVersionMigrationItem
+PlanVersionMigrationPreview
+PlanVersionMigrationPreviewItem

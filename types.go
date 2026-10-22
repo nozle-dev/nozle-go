@@ -30,6 +30,10 @@ type Plan struct {
 	AmountCents    int    `json:"amount_cents"`
 	AmountCurrency string `json:"amount_currency"`
 	Interval       string `json:"interval"`
+	// Version is the version of the code this plan is (plan versioning); IsCurrent is true for the version new
+	// subscriptions get. Plans returns current versions only.
+	Version   int  `json:"version"`
+	IsCurrent bool `json:"is_current"`
 }
 
 // TrackParams holds the fields for a single usage event.
@@ -122,6 +126,10 @@ type CheckoutResult struct {
 type SubscribeParams struct {
 	CustomerID string
 	PlanCode   string
+	// PlanVersion, when set, sells that version of PlanCode instead of the current one (for example an older price).
+	// The same customer and code again keep the subscription's own version; another version of an existing
+	// subscription returns a 422 *APIError.
+	PlanVersion int
 }
 
 // SubscribeResult is the response from the /api/v1/subscribe endpoint.
@@ -129,6 +137,7 @@ type BillingSubscription struct {
 	ExternalID   string `json:"external_id"`
 	Status       string `json:"status"`
 	PlanCode     string `json:"plan_code"`
+	PlanVersion  int    `json:"plan_version"`
 	EndingAt     string `json:"ending_at"`
 	TerminatedAt string `json:"terminated_at"`
 }
