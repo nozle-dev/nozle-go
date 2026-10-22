@@ -129,6 +129,8 @@ if nozle.AsAPIError(err, &apiErr) && apiErr.HasCode("razorpay_requires_inr") {
 }
 ```
 
+`ManagePaymentMethod(ctx, customerID, returnURL, key)` is Stripe only: it returns a `ManagePaymentMethodResult` whose `URL` is the Stripe billing page where the customer adds or replaces a saved card. Razorpay customers pay each invoice by payment link, so for them it returns a 422 `*nozle.APIError` where `HasCode("razorpay_pays_by_link")` is true.
+
 See the [Stripe](https://docs.nozle.dev/integrations/stripe) and [Razorpay](https://docs.nozle.dev/integrations/razorpay) integration guides for connection setup, webhooks, and limits.
 
 `Subscribe` creates a backend subscription. `CancelSubscription` defaults to `end_of_period` when its policy argument is empty; pass `immediate` only when termination now is intended.
@@ -240,7 +242,7 @@ The legacy wallet adapter `CheckAndDeduct` takes `CustomerID` and `Credits`; `Fe
 
 ## Feature Events, Cost Events, and entitlements
 
-`Can` checks an entitlement; `CanWithMetadata` includes a metadata filter. Neither deducts product credits. `Track` sends one Feature Event through Engine; `Meter` sends an explicit batch of 1–100. Supply a stable transaction ID when coordinating retries or linking Cost Events. If `Track` has no subscription ID, it looks up the customer's single active subscription; an ambiguous customer requires an explicit ID.
+`Can` checks an entitlement. `CanWithMetadata` also sends the call's properties, which Engine uses to estimate its cost and revenue (`economics`) and to apply a margin policy; they do not filter usage or change the plan limit check. Neither deducts product credits. `Track` sends one Feature Event through Engine; `Meter` sends an explicit batch of 1–100. Supply a stable transaction ID when coordinating retries or linking Cost Events. `Meter` writes the ID it generates for an event without one back into your slice, so retrying the same slice after an error or timeout sends the same IDs and Engine records each event once; build a new slice only for new events. `Track` does not return its generated ID, so pass your own `TransactionID` when you may retry it. If `Track` has no subscription ID, it looks up the customer's single active subscription; an ambiguous customer requires an explicit ID.
 
 ```go
 transactionID := nozle.CreateTransactionID()

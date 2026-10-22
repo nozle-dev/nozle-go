@@ -4,6 +4,18 @@ All notable changes to the nozle-go SDK will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.13.0] - 2026-10-22
+
+### Added
+
+- `Client.ManagePaymentMethod(ctx, customerID, returnURL, key)` lets a Stripe customer add or replace their saved payment method and returns `ManagePaymentMethodResult` (`URL`, `ExpiresAt`, `Provider` "stripe"): redirect the customer to `URL`. Needs a secret key. Razorpay customers pay each invoice by payment link, so for them it returns a 422 `*APIError` where `HasCode("razorpay_pays_by_link")` is true. Other Engine errors (`invalid_return_url`, `no_linked_payment_provider`, `provider_not_supported`, `missing_payment_provider_customer`) also return `*APIError`.
+
+### Fixed
+
+- README: `CanWithMetadata` no longer described as a metadata filter. Engine uses the properties to estimate the call's cost and revenue (`economics`) and to apply a margin policy; they do not filter usage or change the plan limit check. Documentation only, no code change.
+- `Meter` writes the transaction ID it generates for an event without one back into the caller's slice (`events[i].TransactionID`) before the first attempt. Retrying with the same slice, after an error, a timeout or a cancelled context, now sends the same IDs, so Engine records each event once instead of billing it twice. Caller-provided IDs are kept. A new slice still gets new IDs.
+- `UpsertEntity` no longer sends `external_id` in the PUT body, which Engine rejected with 400 `unknown field "external_id"`. The entity ID travels in the path only. `EntityInput.ExternalID` may be left empty or set to the same ID; a different value returns a `ValidationError` before any request.
+
 ## [0.12.0] - 2026-10-17
 
 ### Added

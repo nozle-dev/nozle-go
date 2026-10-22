@@ -65,6 +65,15 @@ type CheckoutParams struct {
 	RegisterMandate  *bool
 }
 
+// ManagePaymentMethodResult is the result of ManagePaymentMethod (Stripe only).
+type ManagePaymentMethodResult struct {
+	// URL is the Stripe billing page to redirect the customer to.
+	URL       string `json:"url"`
+	ExpiresAt string `json:"expires_at"`
+	// Provider is "stripe".
+	Provider string `json:"provider"`
+}
+
 // CheckoutResult is the response from the /api/v1/checkout endpoint. Type selects
 // which fields are set: "stripe" (ClientSecret), "razorpay" (KeyID, OrderID,
 // AmountCents, Currency, ExpiresAt, and for a mandate CustomerID, Recurring and

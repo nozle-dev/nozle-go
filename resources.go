@@ -74,6 +74,11 @@ func (c *Client) UpsertEntity(ctx context.Context, customer, entity string, p En
 	if err := validateEntityID(entity); err != nil {
 		return out, err
 	}
+	if p.ExternalID != "" && p.ExternalID != entity {
+		return out, &ValidationError{"entities.upsert", "ExternalID must match the entity ID in the path"}
+	}
+	// The ID travels in the path; Engine rejects external_id in the PUT body.
+	p.ExternalID = ""
 	if err := validateEntityStatus(p.Status); err != nil {
 		return out, err
 	}
