@@ -133,7 +133,7 @@ if nozle.AsAPIError(err, &apiErr) && apiErr.HasCode("razorpay_requires_inr") {
 
 See the [Stripe](https://docs.nozle.dev/integrations/stripe) and [Razorpay](https://docs.nozle.dev/integrations/razorpay) integration guides for connection setup, webhooks, and limits.
 
-`Subscribe` creates a backend subscription. `CancelSubscription` defaults to `end_of_period` when its policy argument is empty; pass `immediate` only when termination now is intended.
+`Subscribe` creates a backend subscription. `CancelSubscription` takes the timing (`end_of_period` or `immediate`); leave it empty to use the organization's cancellation timing. An optional `nozle.CancelSubscriptionOptions{CreditAction, RefundMode, FinalInvoiceAction}` sets how the cancellation is settled; each field left empty follows the subscription, then the organization's cancellation settings.
 
 ```go
 subscription, err := client.Subscribe(ctx, nozle.SubscribeParams{CustomerID: "customer-123", PlanCode: "free"})

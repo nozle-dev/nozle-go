@@ -18,6 +18,14 @@ type RazorpayVerification struct {
 	RazorpayPaymentID string `json:"razorpay_payment_id"`
 	RazorpaySignature string `json:"razorpay_signature"`
 }
+
+// CancelSubscriptionOptions are the settlement choices of a cancellation. Each one left empty follows the
+// subscription, then the organization's cancellation settings.
+type CancelSubscriptionOptions struct {
+	CreditAction       string // credit, refund, offset or none
+	RefundMode         string // prorated or full
+	FinalInvoiceAction string // generate or skip
+}
 type CancelSubscriptionResult struct {
 	Subscription   BillingSubscription `json:"subscription"`
 	SubscriptionID string              `json:"subscription_id"`

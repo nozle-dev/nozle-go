@@ -4,6 +4,16 @@ All notable changes to the nozle-go SDK will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Changed
+
+- `CancelSubscription` with an empty policy no longer sends `end_of_period`. It sends no timing, so the organization's cancellation timing applies (Core's default is `immediate`). Pass `"end_of_period"` to keep the previous behaviour.
+
+### Added
+
+- `CancelSubscription` accepts an optional `CancelSubscriptionOptions` (`CreditAction`: `credit`, `refund`, `offset` or `none`; `RefundMode`: `prorated` or `full`; `FinalInvoiceAction`: `generate` or `skip`). Fields left empty are not sent and follow the subscription, then the organization's cancellation settings. Needs Engine with nozle-dev/engine#144.
+
 ## [0.13.0] - 2026-10-22
 
 ### Added
