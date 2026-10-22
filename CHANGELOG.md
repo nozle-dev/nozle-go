@@ -4,6 +4,12 @@ All notable changes to the nozle-go SDK will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.12.1] - 2026-10-22
+
+### Fixed
+
+- `Meter` writes the transaction ID it generates for an event without one back into the caller's slice (`events[i].TransactionID`) before the first attempt. Retrying with the same slice, after an error, a timeout or a cancelled context, now sends the same IDs, so Engine records each event once instead of billing it twice. Caller-provided IDs are kept. A new slice still gets new IDs.
+
 ## [0.12.0] - 2026-10-17
 
 ### Added

@@ -5,7 +5,11 @@ import (
 	"errors"
 )
 
-// Meter sends 1-100 metered events to Engine in one batch.
+// Meter sends 1-100 metered events to Engine in one batch. An event without a TransactionID gets
+// a generated one, written back into the caller's slice (events[i].TransactionID) before the first
+// attempt. Retrying with the same slice, after an error, a timeout or a cancelled context, sends the
+// same IDs, so Engine records each event once. Do not use the slice from another goroutine during
+// the call.
 func (c *Client) Meter(ctx context.Context, events []MeterEvent) error {
 	if err := validateKey(c.apiKey, "meter"); err != nil {
 		return err
@@ -18,10 +22,10 @@ func (c *Client) Meter(ctx context.Context, events []MeterEvent) error {
 		if e.CustomerID == "" || e.Event == "" || e.SubscriptionID == "" {
 			return &ValidationError{"meter", "customer, event and subscription IDs are required"}
 		}
-		id := e.TransactionID
-		if id == "" {
-			id = generateUUID()
+		if e.TransactionID == "" {
+			events[i].TransactionID = generateUUID()
 		}
+		id := events[i].TransactionID
 		p := e.Metadata
 		if p == nil {
 			p = map[string]any{}
