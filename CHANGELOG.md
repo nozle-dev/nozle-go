@@ -8,7 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
-- `Client.ManagePaymentMethod(ctx, customerID, returnURL, key)` lets a customer add or replace their saved payment method and returns `ManagePaymentMethodResult`. For Stripe, redirect the customer to `URL`; for Razorpay, `URL` is empty and `Checkout` holds the options to open Razorpay Checkout. Needs a secret key. Engine errors (`invalid_return_url`, `no_linked_payment_provider`, `provider_not_supported`, the Razorpay mandate errors) return `*APIError`.
+- `Client.ManagePaymentMethod(ctx, customerID, returnURL, key)` lets a Stripe customer add or replace their saved payment method and returns `ManagePaymentMethodResult` (`URL`, `ExpiresAt`, `Provider` "stripe"): redirect the customer to `URL`. Needs a secret key. Razorpay customers pay each invoice by payment link, so for them it returns a 422 `*APIError` where `HasCode("razorpay_pays_by_link")` is true. Other Engine errors (`invalid_return_url`, `no_linked_payment_provider`, `provider_not_supported`, `missing_payment_provider_customer`) also return `*APIError`.
 
 ## [0.12.0] - 2026-10-17
 
