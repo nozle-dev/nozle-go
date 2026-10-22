@@ -4,6 +4,12 @@ All notable changes to the nozle-go SDK will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.12.3] - 2026-10-22
+
+### Fixed
+
+- README: `CanWithMetadata` no longer described as a metadata filter. Engine uses the properties to estimate the call's cost and revenue (`economics`) and to apply a margin policy; they do not filter usage or change the plan limit check. Documentation only, no code change.
+
 ## [0.12.2] - 2026-10-22
 
 ### Fixed
