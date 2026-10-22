@@ -129,6 +129,8 @@ if nozle.AsAPIError(err, &apiErr) && apiErr.HasCode("razorpay_requires_inr") {
 }
 ```
 
+`ManagePaymentMethod(ctx, customerID, returnURL, key)` is Stripe only: it returns a `ManagePaymentMethodResult` whose `URL` is the Stripe billing page where the customer adds or replaces a saved card. Razorpay customers pay each invoice by payment link, so for them it returns a 422 `*nozle.APIError` where `HasCode("razorpay_pays_by_link")` is true.
+
 See the [Stripe](https://docs.nozle.dev/integrations/stripe) and [Razorpay](https://docs.nozle.dev/integrations/razorpay) integration guides for connection setup, webhooks, and limits.
 
 `Subscribe` creates a backend subscription. `CancelSubscription` defaults to `end_of_period` when its policy argument is empty; pass `immediate` only when termination now is intended.

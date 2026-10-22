@@ -57,9 +57,10 @@ func (c *Client) CheckoutInvoice(ctx context.Context, invoiceID, key string) (Ch
 	return out, err
 }
 
-// ManagePaymentMethod lets a customer add or replace their saved payment method.
-// Stripe: send the customer to URL. Razorpay: URL is empty; open Razorpay Checkout
-// from Checkout. Needs a secret key. returnURL and key may be empty.
+// ManagePaymentMethod lets a Stripe customer add or replace their saved payment
+// method: send the customer to URL. Razorpay customers pay each invoice by payment
+// link, so for them it returns a 422 *APIError where HasCode("razorpay_pays_by_link")
+// is true. Needs a secret key. returnURL and key may be empty.
 func (c *Client) ManagePaymentMethod(ctx context.Context, customerID, returnURL, key string) (ManagePaymentMethodResult, error) {
 	var out struct {
 		ManagePaymentMethod ManagePaymentMethodResult `json:"manage_payment_method"`

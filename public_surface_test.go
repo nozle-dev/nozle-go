@@ -108,14 +108,15 @@ func TestManagePaymentMethod(t *testing.T) {
 	var body string
 	var key string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "POST" || r.URL.EscapedPath() != "/api/v1/customers/cust%2F1/payment-method/manage" {
-			t.Errorf("wrong request: %s %s", r.Method, r.URL)
-		}
 		raw, _ := io.ReadAll(r.Body)
 		body, key = string(raw), r.Header.Get("Idempotency-Key")
-		if body == "" {
-			w.Write([]byte(`{"manage_payment_method":{"url":null,"expires_at":"2026-10-22T10:00:00Z","provider":"razorpay","checkout":{"checkout_id":"c1","order_id":"o1"}}}`))
+		if r.URL.Path == "/api/v1/customers/rzp/payment-method/manage" {
+			w.WriteHeader(http.StatusUnprocessableEntity)
+			w.Write([]byte(`{"status":422,"error":"Unprocessable Entity","code":"validation_errors","error_details":{"base":["razorpay_pays_by_link"]}}`))
 			return
+		}
+		if r.Method != "POST" || r.URL.EscapedPath() != "/api/v1/customers/cust%2F1/payment-method/manage" {
+			t.Errorf("wrong request: %s %s", r.Method, r.URL)
 		}
 		w.Write([]byte(`{"manage_payment_method":{"url":"https://billing.stripe.com/x","expires_at":null,"provider":"stripe"}}`))
 	}))
@@ -126,9 +127,10 @@ func TestManagePaymentMethod(t *testing.T) {
 	if err != nil || got.URL != "https://billing.stripe.com/x" || got.Provider != "stripe" || key != "k1" || body != `{"return_url":"https://app.example/back"}` {
 		t.Fatalf("stripe: %+v %v key=%q body=%q", got, err, key, body)
 	}
-	got, err = client.ManagePaymentMethod(ctx, "cust/1", "", "")
-	if err != nil || got.URL != "" || got.Checkout == nil || got.Checkout.OrderID != "o1" || body != "" {
-		t.Fatalf("razorpay: %+v %v body=%q", got, err, body)
+	_, err = client.ManagePaymentMethod(ctx, "rzp", "", "")
+	var apiErr *nozle.APIError
+	if !nozle.AsAPIError(err, &apiErr) || apiErr.StatusCode != 422 || !apiErr.HasCode("razorpay_pays_by_link") || body != "" {
+		t.Fatalf("razorpay: %v body=%q", err, body)
 	}
 	if _, err := nozle.New("pk_browser", nozle.WithBaseURL(server.URL)).ManagePaymentMethod(ctx, "cust", "", ""); err == nil {
 		t.Fatal("publishable key accepted")
