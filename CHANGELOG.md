@@ -4,6 +4,12 @@ All notable changes to the nozle-go SDK will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.12.2] - 2026-10-22
+
+### Fixed
+
+- `UpsertEntity` no longer sends `external_id` in the PUT body, which Engine rejected with 400 `unknown field "external_id"`. The entity ID travels in the path only. `EntityInput.ExternalID` may be left empty or set to the same ID; a different value returns a `ValidationError` before any request.
+
 ## [0.12.1] - 2026-10-22
 
 ### Fixed
