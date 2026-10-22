@@ -12,6 +12,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- README: `CanWithMetadata` no longer described as a metadata filter. Engine uses the properties to estimate the call's cost and revenue (`economics`) and to apply a margin policy; they do not filter usage or change the plan limit check. Documentation only, no code change.
+
+## [0.12.2] - 2026-10-22
+
+### Fixed
+
 - `UpsertEntity` no longer sends `external_id` in the PUT body, which Engine rejected with 400 `unknown field "external_id"`. The entity ID travels in the path only. `EntityInput.ExternalID` may be left empty or set to the same ID; a different value returns a `ValidationError` before any request.
 
 ## [0.12.1] - 2026-10-22
