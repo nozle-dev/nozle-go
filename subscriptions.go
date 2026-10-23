@@ -132,15 +132,30 @@ func (c *Client) Subscribe(ctx context.Context, p SubscribeParams) (SubscribeRes
 	}
 	return out, err
 }
-func (c *Client) CancelSubscription(ctx context.Context, customer, subscription, policy string) (CancelSubscriptionResult, error) {
+
+// CancelSubscription cancels a subscription. An empty policy ("end_of_period" or "immediate") and any
+// option left empty are not sent, so the organization's cancellation settings apply to them.
+func (c *Client) CancelSubscription(ctx context.Context, customer, subscription, policy string, options ...CancelSubscriptionOptions) (CancelSubscriptionResult, error) {
 	var out CancelSubscriptionResult
 	if err := validateKey(c.apiKey, "cancel_subscription"); err != nil {
 		return out, err
 	}
-	if policy == "" {
-		policy = "end_of_period"
+	if len(options) > 1 {
+		return out, &ValidationError{"cancel_subscription", "pass at most one CancelSubscriptionOptions"}
 	}
-	q := url.Values{"customer_id": {customer}, "cancellation_policy": {policy}}
+	q := url.Values{"customer_id": {customer}}
+	var o CancelSubscriptionOptions
+	if len(options) == 1 {
+		o = options[0]
+	}
+	for param, value := range map[string]string{
+		"cancellation_policy": policy, "credit_action": o.CreditAction,
+		"refund_mode": o.RefundMode, "final_invoice_action": o.FinalInvoiceAction,
+	} {
+		if value != "" {
+			q.Set(param, value)
+		}
+	}
 	err := c.request(ctx, "cancel_subscription", "DELETE", false, query("/api/v1/subscriptions/"+segment(subscription), q), nil, &out, "")
 	c.subscriptions.forget(customer)
 	if err == nil && out.Subscription.ExternalID != "" {

@@ -7,6 +7,8 @@ import (
 	nozle "github.com/nozle-dev/nozle-go"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -148,5 +150,40 @@ func TestCancelSubscriptionDecodesNestedResponse(t *testing.T) {
 	}
 	if out.SubscriptionID != "sub-local" || out.Status != "active" || out.Subscription.EndingAt == "" {
 		t.Fatalf("nested cancellation lost: %+v", out)
+	}
+}
+
+func TestCancelSubscriptionSendsOnlyTheOptionsGiven(t *testing.T) {
+	var got url.Values
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got = r.URL.Query()
+		w.Write([]byte(`{"subscription":{"external_id":"sub-1","status":"terminated"}}`))
+	}))
+	defer s.Close()
+	c := nozle.New("sk_test", nozle.WithBaseURL(s.URL))
+	ctx := context.Background()
+
+	// No timing: the organization's cancellation settings decide.
+	if _, err := c.CancelSubscription(ctx, "cust-1", "sub-1", ""); err != nil {
+		t.Fatal(err)
+	}
+	if want := (url.Values{"customer_id": {"cust-1"}}); !reflect.DeepEqual(got, want) {
+		t.Fatalf("query = %v, want %v", got, want)
+	}
+
+	options := nozle.CancelSubscriptionOptions{CreditAction: "refund", RefundMode: "full", FinalInvoiceAction: "skip"}
+	if _, err := c.CancelSubscription(ctx, "cust-1", "sub-1", "immediate", options); err != nil {
+		t.Fatal(err)
+	}
+	want := url.Values{
+		"customer_id": {"cust-1"}, "cancellation_policy": {"immediate"},
+		"credit_action": {"refund"}, "refund_mode": {"full"}, "final_invoice_action": {"skip"},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("query = %v, want %v", got, want)
+	}
+
+	if _, err := c.CancelSubscription(ctx, "cust-1", "sub-1", "", options, options); err == nil {
+		t.Fatal("two option sets were accepted")
 	}
 }
