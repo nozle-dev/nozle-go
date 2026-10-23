@@ -177,7 +177,17 @@ func TestRequestBodiesFitTheAPISchemas(t *testing.T) {
 		},
 		"UpsertCustomer": func() { _, _ = c.UpsertCustomer(ctx, nozle.Customer{ExternalID: "cust"}) },
 		"Subscribe":      func() { _, _ = c.Subscribe(ctx, nozle.SubscribeParams{CustomerID: "cust", PlanCode: "pro"}) },
-		"Checkout":       func() { _, _ = c.Checkout(ctx, nozle.CheckoutParams{CustomerID: "cust", PlanCode: "pro"}) },
+		"SubscribeToAPlanVersion": func() {
+			_, _ = c.Subscribe(ctx, nozle.SubscribeParams{CustomerID: "cust", PlanCode: "pro", PlanVersion: 1})
+		},
+		"PreviewPlanVersionMigration": func() {
+			_, _ = c.PreviewPlanVersionMigration(ctx, "pro", nozle.PlanVersionMigrationParams{FromVersion: 1})
+		},
+		"CreatePlanVersionMigration": func() {
+			_, _ = c.CreatePlanVersionMigration(ctx, "pro", nozle.PlanVersionMigrationParams{FromVersion: 1, ToVersion: 3})
+		},
+		"CancelPlanVersionMigration": func() { _, _ = c.CancelPlanVersionMigration(ctx, "pro", "mig_1") },
+		"Checkout":                   func() { _, _ = c.Checkout(ctx, nozle.CheckoutParams{CustomerID: "cust", PlanCode: "pro"}) },
 		"CheckoutEntitySubscription": func() {
 			_, _ = c.CheckoutEntitySubscription(ctx, "cust", "user-42", nozle.EntitySubscriptionChange{PlanCode: "pro", RegisterMandate: &no})
 		},

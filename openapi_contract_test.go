@@ -42,6 +42,12 @@ func TestResponseStructsMatchTheOpenAPISchemas(t *testing.T) {
 		{CustomerUsage{}, []string{"CustomerUsageObject"}},
 		{ChargeUsage{}, []string{"CustomerChargeUsageObject"}},
 		{Invoice{}, []string{"InvoiceObject"}},
+		{Plan{}, []string{"PlanObject"}},
+		{PlanVersion{}, []string{"PlanVersion"}},
+		{PlanVersionMigration{}, []string{"PlanVersionMigration"}},
+		{PlanVersionMigrationItem{}, []string{"PlanVersionMigrationItem"}},
+		{PlanVersionMigrationPreview{}, []string{"PlanVersionMigrationPreview"}},
+		{PlanVersionMigrationPreviewItem{}, []string{"PlanVersionMigrationPreviewItem"}},
 	}
 	for _, c := range contract {
 		allowed := map[string]bool{}

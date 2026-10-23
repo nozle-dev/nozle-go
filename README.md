@@ -143,6 +143,26 @@ if err != nil { return err }
 _ = cancel
 ```
 
+### Plan versions
+
+When you change the price of a plan that customers pay for, Nozle saves it as the plan's next version: new customers get the new version, and existing subscribers keep the price they bought until you move them. `Plans` returns current versions only; each `Plan` has `Version` and `IsCurrent`.
+
+```go
+// Keep selling the older price to one customer.
+_, err := client.Subscribe(ctx, nozle.SubscribeParams{CustomerID: "cus_123", PlanCode: "pro", PlanVersion: 1})
+
+versions, err := client.PlanVersions(ctx, "pro") // every version, its price and active subscriptions
+older, err := client.PlanVersion(ctx, "pro", 1)
+
+// Move version 1's subscribers to the current version, each at the end of its billing period.
+preview, err := client.PreviewPlanVersionMigration(ctx, "pro", nozle.PlanVersionMigrationParams{FromVersion: 1})
+migration, err := client.CreatePlanVersionMigration(ctx, "pro", nozle.PlanVersionMigrationParams{FromVersion: 1})
+migration, err = client.GetPlanVersionMigration(ctx, "pro", migration.NozleID) // per-subscription Items
+_, err = client.CancelPlanVersionMigration(ctx, "pro", migration.NozleID)       // unschedules moves not started
+```
+
+A migration invoices, credits and refunds nothing when it runs: each subscription is billed the new version from its next period. Subscriptions it cannot move (custom pricing, a trial the new version would change, a pending plan change, an open checkout, and so on) are skipped with a `SkipReason`. Sending the same plan code again for an existing subscription keeps its version; another `PlanVersion` for it is refused. These calls need a secret key. See [Plan versioning](https://docs.nozle.dev/guides/billing/plan-versions).
+
 For subscription self-service, `SubscriptionOptions` returns eligible plans and pending state. `PreviewSubscriptionChange` returns a signed, opaque quote for a plan change. Pass that quote into `Checkout` with the selected subscription. `PreviewSubscriptionTransition` and `ApplySubscriptionTransition` handle cancel, uncancel, and scheduled downgrade flows; `WithdrawPendingSubscriptionChange` targets the exact pending subscription. An end-of-period cancel can carry the preview's exact `EffectiveAt` in `ExpectedEffectiveAt` to reject a changed date.
 
 ```go

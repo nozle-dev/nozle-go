@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.15.0] - Unreleased
+
+### Added
+
+- Plan versions. `Plan` has `Version` and `IsCurrent`; `Plans` returns current versions only.
+- `SubscribeParams.PlanVersion` sells a chosen version of the plan code instead of the current one (needs Engine 2.7.0). The same customer and code again keep the subscription's version; another version of an existing subscription returns a 422 `*APIError` (`plan_version_change_not_supported`), and an unknown version a 404 (`plan_version_not_found`). `BillingSubscription.PlanVersion` is the version subscribed.
+- `PlanVersions(ctx, code)` lists every version of a plan code with its price and active subscriptions; `PlanVersion(ctx, code, version)` reads one version.
+- Version migrations: `PreviewPlanVersionMigration`, `CreatePlanVersionMigration`, `ListPlanVersionMigrations`, `GetPlanVersionMigration` and `CancelPlanVersionMigration` move the subscriptions of one version to another, each at the end of its billing period. Items carry `MoveStatus` (`pending`, `moved`, `canceled`). A second migration of a code while one runs returns a 409 `*APIError` (`plan_version_migration_running`). All need a secret key.
+
 ## [0.14.0] - 2026-10-23
 
 ### Changed

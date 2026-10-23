@@ -124,7 +124,14 @@ func (c *Client) Subscribe(ctx context.Context, p SubscribeParams) (SubscribeRes
 	if err := validateKey(c.apiKey, "subscribe"); err != nil {
 		return out, err
 	}
-	err := c.request(ctx, "subscribe", "POST", false, "/api/v1/subscribe", map[string]any{"customer_id": p.CustomerID, "plan_code": p.PlanCode}, &out, "")
+	if p.PlanVersion < 0 {
+		return out, &ValidationError{"subscribe", "plan version must be 1 or more, or zero for the current version"}
+	}
+	body := map[string]any{"customer_id": p.CustomerID, "plan_code": p.PlanCode}
+	if p.PlanVersion > 0 {
+		body["plan_version"] = p.PlanVersion
+	}
+	err := c.request(ctx, "subscribe", "POST", false, "/api/v1/subscribe", body, &out, "")
 	c.subscriptions.forget(p.CustomerID)
 	if err == nil && out.Subscription.ExternalID != "" {
 		out.SubscriptionID = out.Subscription.ExternalID
