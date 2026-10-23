@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-10-23
+
 ### Changed
 
 - `CancelSubscription` with an empty policy no longer sends `end_of_period`. It sends no timing, so the organization's cancellation timing applies (Core's default is `immediate`). Pass `"end_of_period"` to keep the previous behaviour.
