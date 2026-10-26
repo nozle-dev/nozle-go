@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-10-26
+
+### Added
+
+- `CanWithOptions(ctx, customerID, feature, CanOptions{SubscriptionID, EntityID, Metadata})` evaluates one subscription (or one Entity's subscription) of a customer with several. Without a selector, a customer with several current subscriptions gets `Allowed=false`, `Reason="subscription_required"`.
+- `TrackWithID` is `Track` that also returns the event's transaction ID, the generated one when none was given.
+
+### Changed
+
+- `Track` with no `SubscriptionID` for a customer with no or several active subscriptions now returns a 422 `*APIError` (`HasCode("active_subscription_not_found")` or `HasCode("active_subscription_ambiguous")`, the Engine's codes) instead of a `*ValidationError`.
+
 ## [0.15.0] - 2026-10-24
 
 ### Added

@@ -11,18 +11,26 @@ import (
 
 // Track records a metered event through Engine. Supply a stable TransactionID when retrying.
 func (c *Client) Track(ctx context.Context, p TrackParams) error {
+	_, err := c.TrackWithID(ctx, p)
+	return err
+}
+
+// TrackWithID is Track that also returns the event's transaction ID: the one in p, or the generated one.
+// Pass it back as TrackParams.TransactionID when you retry, so Engine records the event once. On an
+// error after the ID was chosen it is returned too.
+func (c *Client) TrackWithID(ctx context.Context, p TrackParams) (string, error) {
 	if err := validateKey(c.apiKey, "track"); err != nil {
-		return err
+		return "", err
 	}
 	if err := required("track", "customer_id", p.CustomerID); err != nil {
-		return err
+		return "", err
 	}
 	if err := required("track", "event", p.Event); err != nil {
-		return err
+		return "", err
 	}
 	sub, err := c.subscriptionOrActive(ctx, "track", p.CustomerID, p.SubscriptionID)
 	if err != nil {
-		return err
+		return "", err
 	}
 	id := p.TransactionID
 	if id == "" {
@@ -36,11 +44,11 @@ func (c *Client) Track(ctx context.Context, p TrackParams) error {
 	if p.Timestamp != "" {
 		normalized, err := eventTimestamp(p.Timestamp)
 		if err != nil {
-			return err
+			return "", err
 		}
 		event["timestamp"] = normalized
 	}
-	return c.request(ctx, "track", "POST", false, "/api/v1/events", map[string]any{"event": event}, nil, "")
+	return id, c.request(ctx, "track", "POST", false, "/api/v1/events", map[string]any{"event": event}, nil, "")
 }
 func generateUUID() string {
 	var b [16]byte
