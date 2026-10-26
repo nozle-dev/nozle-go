@@ -100,7 +100,16 @@ func (c *Client) subscriptionOrActive(ctx context.Context, op, customerID, subsc
 		return "", err
 	}
 	if len(found.Subscriptions) != 1 {
-		return "", &ValidationError{op, "exactly one active subscription required; supply SubscriptionID"}
+		// An *APIError with the codes the Engine uses for the same case, so callers match one error type.
+		code, message := "active_subscription_not_found", "no active subscription for the customer; supply SubscriptionID"
+		if len(found.Subscriptions) > 1 {
+			code, message = "active_subscription_ambiguous", "the customer has several active subscriptions; supply SubscriptionID"
+		}
+		return "", &APIError{
+			StatusCode: http.StatusUnprocessableEntity, Method: http.MethodGet, Path: "/api/v1/subscriptions",
+			Operation: op + ".subscription_lookup", Body: message,
+			Details: map[string]any{"code": code, "error": message},
+		}
 	}
 	c.subscriptions.set(customerID, found.Subscriptions[0].ExternalID)
 	return found.Subscriptions[0].ExternalID, nil
