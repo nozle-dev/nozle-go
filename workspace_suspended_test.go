@@ -11,7 +11,7 @@ import (
 	nozle "github.com/nozle-dev/nozle-go"
 )
 
-// A suspended workspace answers every call with 402 workspace_suspended: it is returned as an
+// 402 workspace_suspended (unpaid Nozle invoices) and card_required (no verified card) answer every call: it is returned as an
 // *APIError with Code(), never retried and never turned into an allowed or denied result.
 func TestWorkspaceSuspended_402SurfacesWithCodeAndIsNotRetried(t *testing.T) {
 	calls := map[string]func(*nozle.Client) error{
@@ -31,27 +31,34 @@ func TestWorkspaceSuspended_402SurfacesWithCodeAndIsNotRetried(t *testing.T) {
 			return err
 		},
 	}
-	for name, call := range calls {
-		t.Run(name, func(t *testing.T) {
-			hits := 0
-			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				hits++
-				w.WriteHeader(http.StatusPaymentRequired)
-				_, _ = w.Write([]byte(`{"code":"workspace_suspended","error":"This workspace is suspended because its Nozle invoices are unpaid. Pay them to resume."}`))
-			}))
-			defer srv.Close()
-			c := nozle.New("sk_test-key", nozle.WithBaseURL(srv.URL), nozle.WithEventsURL(srv.URL),
-				nozle.WithMaxRetries(3), nozle.WithRetryDelay(time.Millisecond))
-			var apiErr *nozle.APIError
-			if err := call(c); !errors.As(err, &apiErr) {
-				t.Fatalf("err = %v, want *APIError", err)
-			}
-			if apiErr.StatusCode != 402 || apiErr.Code() != "workspace_suspended" {
-				t.Fatalf("status = %d, code = %q", apiErr.StatusCode, apiErr.Code())
-			}
-			if hits != 1 {
-				t.Fatalf("requests = %d, want 1", hits)
-			}
-		})
+	bodies := map[string]string{
+		"workspace_suspended": `{"code":"workspace_suspended","error":"This workspace is suspended because its Nozle invoices are unpaid. Pay them to resume."}`,
+		"card_required":       `{"code":"card_required","error":"Add a card to your Nozle workspace to use the API."}`,
+	}
+	for code, body := range bodies {
+		for name, call := range calls {
+			code, body, name, call := code, body, name, call
+			t.Run(code+"/"+name, func(t *testing.T) {
+				hits := 0
+				srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					hits++
+					w.WriteHeader(http.StatusPaymentRequired)
+					_, _ = w.Write([]byte(body))
+				}))
+				defer srv.Close()
+				c := nozle.New("sk_test-key", nozle.WithBaseURL(srv.URL), nozle.WithEventsURL(srv.URL),
+					nozle.WithMaxRetries(3), nozle.WithRetryDelay(time.Millisecond))
+				var apiErr *nozle.APIError
+				if err := call(c); !errors.As(err, &apiErr) {
+					t.Fatalf("err = %v, want *APIError", err)
+				}
+				if apiErr.StatusCode != 402 || apiErr.Code() != code {
+					t.Fatalf("status = %d, code = %q", apiErr.StatusCode, apiErr.Code())
+				}
+				if hits != 1 {
+					t.Fatalf("requests = %d, want 1", hits)
+				}
+			})
+		}
 	}
 }

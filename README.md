@@ -341,9 +341,9 @@ if errors.As(err, &apiErr) {
 
 The SDK makes one HTTP attempt per call and never retries mutations automatically. Reuse the same idempotency key and payload if you deliberately retry after an uncertain response. A new key can create a second operation.
 
-### Workspace suspended (402)
+### Workspace suspended or card required (402)
 
-When your Nozle workspace is suspended because its Nozle invoices are unpaid, every API call answers HTTP 402 with the code `workspace_suspended`. It comes back as a `*nozle.APIError` with `StatusCode` 402 and `Code()` `workspace_suspended` from `Can`, `Track`, `CheckUsage` and every other call; `Can` returns the error instead of an allowed or denied result. Do not retry blindly: the SDK never retries a 402. Pay the Nozle invoices in the dashboard and calls work again at once. Events sent during the suspension are refused, not queued.
+When your Nozle workspace is suspended because its Nozle invoices are unpaid, every API call answers HTTP 402 with the code `workspace_suspended`. A workspace without a verified card answers 402 with the code `card_required` the same way. It comes back as a `*nozle.APIError` with `StatusCode` 402 and `Code()` `workspace_suspended` from `Can`, `Track`, `CheckUsage` and every other call; `Can` returns the error instead of an allowed or denied result. Never retry blindly: the SDK does not retry a 402. Add a card in the Nozle dashboard (`card_required`) or pay the Nozle invoices (`workspace_suspended`) and calls work again at once. Events sent during the suspension are refused, not queued.
 
 ```go
 if errors.As(err, &apiErr) && apiErr.Code() == "workspace_suspended" {
