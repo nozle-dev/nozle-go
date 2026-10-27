@@ -15,7 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
-- **Breaking:** Stripe checkout is hosted only (Core 11.4.0, Engine 2.12.0). A Stripe `Checkout`, `CheckoutInvoice`, plan change or Entity checkout returns `Type` `hosted` with `URL` (and `PaymentURL`, the same address) and `CheckoutID`: redirect the customer to `URL`, then poll `CheckoutStatus`. The `stripe` result type and the `ClientSecret` field are removed from `CheckoutResult` and `EntitySubscriptionCheckoutManyResult`, which gain `URL` and `PaymentURL`.
+- **Breaking:** Stripe checkout is hosted only (Core 11.4.0, Engine 2.12.0). A Stripe `Checkout`, `CheckoutInvoice`, plan change or Entity checkout returns `Type` `hosted` with `URL` (and `PaymentURL`, the same address) and `CheckoutID`: redirect the customer to `URL`. Only a paid upgrade has a status call (`CheckoutStatus` with `PlanUpgradeIntentID`); a Stripe `CheckoutID` is the session id, not a status id, so confirm a new subscription or invoice through webhooks or by reloading billing state. The `stripe` result type and the `ClientSecret` field are removed from `CheckoutResult` and `EntitySubscriptionCheckoutManyResult`, which gain `URL` and `PaymentURL`.
 
 ## [0.16.0] - 2026-10-26
 

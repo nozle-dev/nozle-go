@@ -58,12 +58,12 @@ _ = checkout
 
 | `Type` | Provider | Next step |
 | --- | --- | --- |
-| `hosted` | Stripe, Razorpay link | Redirect the customer to `URL` (the Stripe Checkout page; `PaymentURL` is the same address), then poll `CheckoutStatus` with `CheckoutID` |
+| `hosted` | Stripe, Razorpay link | Redirect the customer to `URL` (the Stripe Checkout page; `PaymentURL` is the same address), then confirm as described below (Stripe: `CheckoutID` is the Stripe session id, not a status id) |
 | `razorpay` | Razorpay | Open the Razorpay modal with `KeyID`, `OrderID`, `AmountCents` and `Currency`, then verify |
 | `processing` | Razorpay or Stripe | Recover with `CheckoutStatus` and `CheckoutID` instead of starting another checkout. Razorpay returns it while the order is not ready; Stripe returns it when a quoted upgrade is replayed while its webhook is still pending |
 | `completed`, `scheduled` | Either | No payment is due now: credits covered it (`PaymentSource`), or the change takes effect later (`TransitionDirection`, `TransitionPolicy`, `EffectiveAt`) |
 
-**Stripe.** Every Stripe checkout is the Stripe-hosted Checkout page; there is no embedded form. Redirect the customer to `URL`. Set `CancelURL` (or use `CheckoutInvoiceWithOptions`) to choose where Stripe sends a customer who leaves the page (validated like `ReturnURL`, defaults to it). A return URL may contain the literal `{CHECKOUT_SESSION_ID}`, which Stripe replaces with the Checkout Session id. Credit top-up purchases also return a Stripe-hosted `payment_url` (valid for 24 hours).
+**Stripe.** Every Stripe checkout is the Stripe-hosted Checkout page; there is no embedded form. `CheckoutID` of a Stripe result is the Stripe session id (`cs_...`), which `CheckoutStatus` does not accept. An upgrade session lasts 35 minutes, an Entity batch 23 hours. Redirect the customer to `URL`. Set `CancelURL` (or use `CheckoutInvoiceWithOptions`) to choose where Stripe sends a customer who leaves the page (validated like `ReturnURL`, defaults to it). A return URL may contain the literal `{CHECKOUT_SESSION_ID}`, which Stripe replaces with the Checkout Session id. Credit top-up purchases also return a Stripe-hosted `payment_url` (valid for 24 hours).
 
 ```go
 checkout, err := client.Checkout(ctx, nozle.CheckoutParams{
@@ -75,8 +75,13 @@ checkout, err := client.Checkout(ctx, nozle.CheckoutParams{
 })
 if err != nil { return err }
 if checkout.Type == "hosted" {
-    // Redirect the customer to checkout.URL. After they return, poll CheckoutStatus
-    // with checkout.CheckoutID: its checkout is "completed" once paid.
+    // Redirect the customer to checkout.URL.
+    // Paid upgrade (checkout.PlanUpgradeIntentID): after they return, poll CheckoutStatus
+    //   with that ID and the customer and subscription scope; status is awaiting_payment,
+    //   processing, succeeded or expired.
+    // New subscription or invoice (checkout.InvoiceID): there is no status call. The customer
+    //   returns to your return URL; confirm with the invoice.payment_succeeded or subscription
+    //   webhook, or by reloading billing state (Can or the subscription read).
 }
 ```
 

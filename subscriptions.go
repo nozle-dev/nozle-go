@@ -97,6 +97,10 @@ func (c *Client) ManagePaymentMethod(ctx context.Context, customerID, returnURL,
 	err := c.request(ctx, "manage_payment_method", "POST", false, "/api/v1/customers/"+segment(customerID)+"/payment-method/manage", body, &out, key)
 	return out.ManagePaymentMethod, err
 }
+
+// CheckoutStatus reads a paid upgrade (pass its PlanUpgradeIntentID with the customer and subscription
+// scope) or a Razorpay operation. It does not accept a Stripe CheckoutID ("cs_..."): a new-subscription
+// or invoice Stripe checkout has no status call, so confirm it through webhooks or by reloading billing state.
 func (c *Client) CheckoutStatus(ctx context.Context, checkoutID string, scope CheckoutScope) (CheckoutStatus, error) {
 	var out CheckoutStatus
 	if err := validateKey(c.apiKey, "checkout_status"); err != nil {
