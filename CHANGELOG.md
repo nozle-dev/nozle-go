@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-10-27
+
+### Added
+
+- A suspended workspace (unpaid Nozle invoices) answers every call with HTTP 402 and code `workspace_suspended`. It is returned as `*APIError` (`StatusCode` 402, `Code()`) from `Can`, `Track`, `CheckUsage` and every other call, and is never retried or turned into an allowed or denied result. Tests and a README note added; no API change.
+
 ## [0.16.0] - 2026-10-26
 
 ### Added
