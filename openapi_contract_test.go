@@ -48,6 +48,20 @@ func TestResponseStructsMatchTheOpenAPISchemas(t *testing.T) {
 		{PlanVersionMigrationItem{}, []string{"PlanVersionMigrationItem"}},
 		{PlanVersionMigrationPreview{}, []string{"PlanVersionMigrationPreview"}},
 		{PlanVersionMigrationPreviewItem{}, []string{"PlanVersionMigrationPreviewItem"}},
+		{MarginForecastResult{}, []string{"MarginForecastResponse"}},
+		{MarginForecastPoint{}, []string{"MarginForecastPoint"}},
+		{MarginSimulation{}, []string{"MarginSimulationResult"}},
+		{CostIntelligenceReportResult{}, []string{"CostIntelligenceReport"}},
+		{CostIntelligenceSummary{}, []string{"CostIntelligenceSummary"}},
+		{CostIntelligenceBreakdown{}, []string{"CostIntelligenceBreakdown"}},
+		{CostIntelligenceLedgerEntry{}, []string{"CostIntelligenceLedgerEntry"}},
+		{CostIntelligenceUncostedSource{}, []string{"CostIntelligenceUncostedSource"}},
+		{CostIntelligenceConflict{}, []string{"CostIntelligenceProcessingConflict"}},
+		{SharedCostAllocationPreview{}, []string{"SharedCostAllocationPreview"}},
+		{SharedCostAllocationRun{}, []string{"SharedCostAllocationRun"}},
+		{SharedCostCustomerAllocation{}, []string{"SharedCostCustomerAllocation"}},
+		{CreditBalanceImport{}, []string{"CreditsBalanceImport"}},
+		{BillingStateImport{}, []string{"BillingStateImport"}},
 	}
 	for _, c := range contract {
 		allowed := map[string]bool{}
