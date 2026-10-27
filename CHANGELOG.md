@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-10-27
+
+### Added
+
+- `ImportBillingState(ctx, customerID, BillingStateImportParams, key)` imports a subscription another system already bills (Core `POST /customers/{customer_id}/billing-state-imports`), and `ImportCreditBalance(ctx, customerID, CreditBalanceImportParams, key)` records its opening credit balance (Engine `POST /customers/{customer_id}/credit-balance-imports`). Both need a secret key and an Idempotency-Key of at most 255 bytes, return the unwrapped import and return `*APIError` on failure.
+- `MarginForecast(ctx, q)` (`GET /margin/forecast`, typed `MarginForecastResult`) and `MarginSimulate(ctx, MarginSimulateParams, q)` (`POST /margin/simulate`, typed `MarginSimulation`).
+- `CostIntelligenceReport(ctx, CostIntelligenceReportParams)`, `PreviewSharedCostAllocation(ctx, poolID, allocationPeriodStart)` and `AllocateSharedCost(ctx, poolID, allocationPeriodStart)` (Engine `/cost-intelligence/*`, secret keys).
+
 ## [0.16.0] - 2026-10-26
 
 ### Added

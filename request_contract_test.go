@@ -202,6 +202,20 @@ func TestRequestBodiesFitTheAPISchemas(t *testing.T) {
 		},
 		"UpsertEntity":    func() { _, _ = c.UpsertEntity(ctx, "cust", "user-42", nozle.EntityInput{Status: "active"}, "e1") },
 		"AllocateCredits": func() { _, _ = c.AllocateCredits(ctx, "cust", "user-42", "ai_credits", nozle.Decimal("10"), "a1") },
+		"MarginSimulate": func() {
+			_, _ = c.MarginSimulate(ctx, nozle.MarginSimulateParams{MetricCode: "agent_execution", NewPriceDollars: 1}, nil)
+		},
+		"ImportCreditBalance": func() {
+			_, _ = c.ImportCreditBalance(ctx, "cust", nozle.CreditBalanceImportParams{
+				ExternalSubscriptionID: "sub_1", CreditSystemCode: "ai_credits", GrantedAmount: "500", RemainingAmount: "320", DryRun: true,
+			}, "i1")
+		},
+		"ImportBillingState": func() {
+			_, _ = c.ImportBillingState(ctx, "cust", nozle.BillingStateImportParams{DryRun: true, Subscription: nozle.BillingStateImportSubscription{
+				PlanCode: "pro", Status: "active", BillingAuthority: "external", ExternalReference: "ext_1",
+				CurrentPeriodStart: "2026-10-15T00:00:00Z", CurrentPeriodEnd: "2026-11-15T00:00:00Z",
+			}}, "i2")
+		},
 	}
 	for name, call := range calls {
 		requests = nil
