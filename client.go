@@ -193,11 +193,13 @@ func (c *Client) endpoint(core bool) string {
 }
 
 // requestOps that are safe to repeat although they carry no Idempotency-Key: events and cost events
-// are idempotent by their own id, a customer upsert converges, and checks and previews only read.
+// are idempotent by their own id, a customer upsert converges, checks, previews and margin simulations
+// only read, and a shared-cost allocation of the same period returns its first run.
 var repeatableOps = map[string]bool{
 	"track": true, "meter": true, "cost_events.track": true, "customers.upsert": true,
 	"usage.check": true, "preview_subscription_transition": true, "preview_subscription_change": true,
-	"invoice_download_url": true,
+	"invoice_download_url": true, "margin.simulate": true,
+	"cost_intelligence.preview_shared_cost_allocation": true, "cost_intelligence.allocate_shared_cost": true,
 }
 
 // request sends one call. With WithMaxRetries set it retries network errors, timeouts, 429 and 5xx,

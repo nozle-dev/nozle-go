@@ -229,6 +229,26 @@ if err != nil { return err }
 _ = group.Items
 ```
 
+### Importing billing state and opening credit balances
+
+When you move customers from another billing system, import each subscription that system still bills (`ImportBillingState`, Core), then its current credit balance (`ImportCreditBalance`, Engine). Both need a secret key and an idempotency key (at most 255 bytes): retry an uncertain call with the same key and params. `DryRun: true` validates without writing. Failures return `*APIError`.
+
+```go
+state, err := client.ImportBillingState(ctx, "workspace_123", nozle.BillingStateImportParams{
+    Subscription: nozle.BillingStateImportSubscription{
+        PlanCode: "pro_monthly", Status: "active", BillingAuthority: "external",
+        ExternalReference:  "merchant_subscription_123",
+        CurrentPeriodStart: "2026-10-15T00:00:00Z", CurrentPeriodEnd: "2026-11-15T00:00:00Z",
+    },
+}, "import-workspace_123-state")
+if err != nil { return err }
+_, err = client.ImportCreditBalance(ctx, "workspace_123", nozle.CreditBalanceImportParams{
+    ExternalSubscriptionID: state.Subscription.ExternalSubscriptionID,
+    CreditSystemCode: "ai_credits", GrantedAmount: "500", RemainingAmount: "320",
+}, "import-workspace_123-credits")
+if err != nil { return err }
+```
+
 ## Product credits and usage
 
 `ListCreditSystems` follows Core's active pages. Customer and Entity balance and operation methods return exact `Decimal` strings, including `GetCreditBalance`, `ListCreditBalances`, `ListCreditOperations`, `GetEntityCreditBalance`, `ListEntityCreditBalances`, and `ListEntityCreditOperations`.
@@ -331,6 +351,18 @@ _, _ = summary, trend
 ```
 
 Pass `url.Values` for optional filters. Trend granularity is `hour`, `day`, `week`, or `month`.
+
+`MarginForecast` (typed `MarginForecastResult`) projects the 30 days after the range, and `MarginSimulate` replays one metric's usage at a new unit price. `CostIntelligenceReport`, `PreviewSharedCostAllocation` and `AllocateSharedCost` read the ledger-backed cost report and book Shared Period Costs.
+
+```go
+forecast, err := client.MarginForecast(ctx, nil)
+if err != nil { return err }
+sim, err := client.MarginSimulate(ctx, nozle.MarginSimulateParams{MetricCode: "agent_execution", NewPriceDollars: 1}, nil)
+if err != nil { return err }
+report, err := client.CostIntelligenceReport(ctx, nozle.CostIntelligenceReportParams{From: "2026-10-01T00:00:00Z", Limit: 50})
+if err != nil { return err }
+_, _, _ = forecast, sim, report
+```
 
 ## Errors and retries
 
