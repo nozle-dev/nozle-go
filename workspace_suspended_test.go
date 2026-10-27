@@ -5,6 +5,9 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -59,6 +62,27 @@ func TestWorkspaceSuspended_402SurfacesWithCodeAndIsNotRetried(t *testing.T) {
 					t.Fatalf("requests = %d, want 1", hits)
 				}
 			})
+		}
+	}
+}
+
+// Stripe checkout is hosted only: no client secret anywhere in the SDK.
+func TestNoEmbeddedCheckoutSecret(t *testing.T) {
+	files, err := filepath.Glob("*.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	files = append(files, "README.md")
+	for _, file := range files {
+		if strings.HasSuffix(file, "_test.go") {
+			continue
+		}
+		data, err := os.ReadFile(file)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if lower := strings.ToLower(string(data)); strings.Contains(lower, "client_secret") || strings.Contains(lower, "clientsecret") {
+			t.Errorf("%s mentions a client secret", file)
 		}
 	}
 }

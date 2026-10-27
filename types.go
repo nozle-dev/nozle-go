@@ -58,10 +58,13 @@ type MeterEvent struct {
 
 // CheckoutParams holds the fields for creating a checkout session.
 type CheckoutParams struct {
-	OrganizationID   string // Deprecated: use CustomerID
-	CustomerID       string
-	PlanCode         string
-	ReturnURL        string
+	OrganizationID string // Deprecated: use CustomerID
+	CustomerID     string
+	PlanCode       string
+	ReturnURL      string
+	// CancelURL is where Stripe sends a customer who leaves the hosted page. It is validated like
+	// ReturnURL and defaults to it. A return URL may contain the literal {CHECKOUT_SESSION_ID}.
+	CancelURL        string
 	SubscriptionID   string
 	QuoteID          string
 	ExternalEntityID string
@@ -79,21 +82,22 @@ type ManagePaymentMethodResult struct {
 }
 
 // CheckoutResult is the response from the /api/v1/checkout endpoint. Type selects
-// which fields are set: "stripe" (ClientSecret), "razorpay" (KeyID, OrderID,
+// which fields are set: "hosted" (URL, PaymentURL: the Stripe Checkout page or a Razorpay
+// link; redirect the customer to URL), "razorpay" (KeyID, OrderID,
 // AmountCents, Currency, ExpiresAt, and for a mandate CustomerID, Recurring and
-// MandateMaxAmountCents), "hosted" (PaymentURL), "processing" (CheckoutID and
+// MandateMaxAmountCents), "processing" (CheckoutID and
 // Status: Razorpay while the order is created, or Stripe when a quoted upgrade is
 // replayed while its webhook is pending), "completed" and "scheduled". Fields that
 // do not apply stay at their zero value.
 type CheckoutResult struct {
-	Type       string `json:"type"`
+	Type string `json:"type"`
+	// URL is the hosted page to redirect the customer to; PaymentURL is the same address.
+	URL        string `json:"url"`
 	PaymentURL string `json:"payment_url"`
 	CheckoutID string `json:"checkout_id"`
-	// ClientSecret is the embedded Stripe Checkout Session secret ("cs_...").
-	ClientSecret string `json:"client_secret"`
-	KeyID        string `json:"key_id"`
-	OrderID      string `json:"order_id"`
-	InvoiceID    string `json:"invoice_id"`
+	KeyID      string `json:"key_id"`
+	OrderID    string `json:"order_id"`
+	InvoiceID  string `json:"invoice_id"`
 	// PlanUpgradeIntentID is set instead of InvoiceID for a paid upgrade.
 	PlanUpgradeIntentID string `json:"plan_upgrade_intent_id"`
 	// AmountCents is in the currency's minor unit (paise for INR).

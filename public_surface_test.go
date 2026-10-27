@@ -31,7 +31,7 @@ func TestCheckoutLifecycleContracts(t *testing.T) {
 			if r.Method != "POST" || r.URL.Path != "/api/v1/checkout" || r.Header.Get("Idempotency-Key") != "invoice-retry" || !reflect.DeepEqual(body, map[string]any{"invoice_id": "invoice-1"}) {
 				t.Errorf("wrong invoice request: %s %s %v", r.Method, r.URL, body)
 			}
-			w.Write([]byte(`{"type":"stripe","checkout_id":"checkout/1","client_secret":"simulated","amount_cents":100,"currency":"USD"}`))
+			w.Write([]byte(`{"type":"hosted","checkout_id":"checkout/1","url":"https://checkout.stripe.com/c/pay/simulated","amount_cents":100,"currency":"USD"}`))
 			return
 		}
 		if r.URL.Query().Get("customer_id") != "customer-1" || r.URL.Query().Get("subscription_id") != "subscription-1" {

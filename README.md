@@ -58,26 +58,25 @@ _ = checkout
 
 | `Type` | Provider | Next step |
 | --- | --- | --- |
-| `stripe` | Stripe | Send `ClientSecret` (a `cs_` embedded Checkout Session secret) to the browser |
+| `hosted` | Stripe, Razorpay link | Redirect the customer to `URL` (the Stripe Checkout page; `PaymentURL` is the same address), then poll `CheckoutStatus` with `CheckoutID` |
 | `razorpay` | Razorpay | Open the Razorpay modal with `KeyID`, `OrderID`, `AmountCents` and `Currency`, then verify |
-| `hosted` | Razorpay | Declared in the result types; `POST /checkout` does not return it for Razorpay. Invoice payment URLs and credit top-ups return a `payment_url` (an rzp.io payment link) with no checkout id to poll (the field is `PaymentURL`) |
 | `processing` | Razorpay or Stripe | Recover with `CheckoutStatus` and `CheckoutID` instead of starting another checkout. Razorpay returns it while the order is not ready; Stripe returns it when a quoted upgrade is replayed while its webhook is still pending |
 | `completed`, `scheduled` | Either | No payment is due now: credits covered it (`PaymentSource`), or the change takes effect later (`TransitionDirection`, `TransitionPolicy`, `EffectiveAt`) |
 
-**Stripe.** Plan and invoice checkout always create an embedded Checkout Session. They never return a Stripe-hosted URL or your Stripe publishable key, so the browser needs the `pk_` key for the Stripe account connected in Nozle. Credit top-up purchases are different: they return a Stripe-hosted `payment_url` (`checkout.stripe.com`, valid for 24 hours).
+**Stripe.** Every Stripe checkout is the Stripe-hosted Checkout page; there is no embedded form. Redirect the customer to `URL`. Set `CancelURL` (or use `CheckoutInvoiceWithOptions`) to choose where Stripe sends a customer who leaves the page (validated like `ReturnURL`, defaults to it). A return URL may contain the literal `{CHECKOUT_SESSION_ID}`, which Stripe replaces with the Checkout Session id. Credit top-up purchases also return a Stripe-hosted `payment_url` (valid for 24 hours).
 
 ```go
 checkout, err := client.Checkout(ctx, nozle.CheckoutParams{
     CustomerID:     "customer-123",
     PlanCode:       "pro_monthly",
     ReturnURL:      "https://merchant.example/billing/complete",
+    CancelURL:      "https://merchant.example/pricing",
     IdempotencyKey: "customer-123-pro_monthly-v1",
 })
 if err != nil { return err }
-if checkout.Type == "stripe" {
-    // Return checkout.ClientSecret to the browser and mount Stripe Embedded Checkout.
-    // A new subscription has no checkout ID to poll: reload the subscription after
-    // Embedded Checkout completes. A paid upgrade carries PlanUpgradeIntentID.
+if checkout.Type == "hosted" {
+    // Redirect the customer to checkout.URL. After they return, poll CheckoutStatus
+    // with checkout.CheckoutID: its checkout is "completed" once paid.
 }
 ```
 

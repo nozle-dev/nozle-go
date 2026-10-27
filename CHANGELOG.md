@@ -10,7 +10,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
-- A suspended workspace (unpaid Nozle invoices) answers every call with HTTP 402 and code `workspace_suspended`. It is returned as `*APIError` (`StatusCode` 402, `Code()`) from `Can`, `Track`, `CheckUsage` and every other call, and is never retried or turned into an allowed or denied result. Tests and a README note added; no API change.
+- A suspended workspace (unpaid Nozle invoices) answers every call with HTTP 402 and code `workspace_suspended`. It is returned as `*APIError` (`StatusCode` 402, `Code()`) from `Can`, `Track`, `CheckUsage` and every other call, and is never retried or turned into an allowed or denied result. Tests and a README note added.
+- `CheckoutParams.CancelURL` and `CheckoutInvoiceWithOptions(ctx, invoiceID, CheckoutInvoiceOptions{CancelURL, IdempotencyKey})` send `cancel_url`: where Stripe sends a customer who leaves the hosted page, validated like `ReturnURL`. A return URL may contain `{CHECKOUT_SESSION_ID}`.
+
+### Changed
+
+- **Breaking:** Stripe checkout is hosted only (Core 11.4.0, Engine 2.12.0). A Stripe `Checkout`, `CheckoutInvoice`, plan change or Entity checkout returns `Type` `hosted` with `URL` (and `PaymentURL`, the same address) and `CheckoutID`: redirect the customer to `URL`, then poll `CheckoutStatus`. The `stripe` result type and the `ClientSecret` field are removed from `CheckoutResult` and `EntitySubscriptionCheckoutManyResult`, which gain `URL` and `PaymentURL`.
 
 ## [0.16.0] - 2026-10-26
 
