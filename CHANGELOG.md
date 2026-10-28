@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-10-28
+
+### Added
+
+- `MeterWithResult(ctx, events)` returns the accepted events (`MeterResult`). `Meter` is unchanged. `(*APIError).BatchErrors()` maps event index to error for a rejected batch (the batch is all-or-nothing).
+
+### Changed
+
+- `APIError.Error()` includes the Engine error code when the response has one, for example `nozle: POST /api/v1/events/batch returned 422 (validation_errors)`.
+
+### Fixed
+
+- README: the SDK retries only when `WithMaxRetries` is set, and only calls that are safe to repeat. `AmountDueCents` documented: `""` omitted, `"0"` zero.
+
 ## [0.18.0] - 2026-10-27
 
 ### Added

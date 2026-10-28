@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -170,5 +171,50 @@ func TestMeter_freshSliceGetsNewIDs(t *testing.T) {
 	first, second := sentTransactionIDs(t, got[0]), sentTransactionIDs(t, got[1])
 	if first[1] == second[1] || first[2] == second[2] {
 		t.Fatalf("separate batches must get separate generated IDs: %v %v", first, second)
+	}
+}
+
+func TestMeterWithResultReturnsAcceptedEvents(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"events":[{"transaction_id":"t1","code":"api_call","external_customer_id":"c1","external_subscription_id":"s1"}]}`))
+	}))
+	defer srv.Close()
+	c := nozle.New("sk_test-key", nozle.WithBaseURL(srv.URL))
+	res, err := c.MeterWithResult(context.Background(), []nozle.MeterEvent{{CustomerID: "c1", SubscriptionID: "s1", Event: "api_call"}})
+	if err != nil || len(res.Events) != 1 || res.Events[0].TransactionID != "t1" || res.Events[0].Code != "api_call" {
+		t.Fatalf("result %+v err %v", res, err)
+	}
+}
+
+func TestMeterBatchRejectedSurfacesIndexErrorsAndCode(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(422)
+		w.Write([]byte(`{"status":422,"code":"validation_errors","error_details":{"1":{"timestamp":["invalid_format"]}}}`))
+	}))
+	defer srv.Close()
+	c := nozle.New("sk_test-key", nozle.WithBaseURL(srv.URL))
+	res, err := c.MeterWithResult(context.Background(), meterBatch())
+	var api *nozle.APIError
+	if res != nil || !nozle.AsAPIError(err, &api) {
+		t.Fatalf("res %v err %v", res, err)
+	}
+	if api.Code() != "validation_errors" || !strings.Contains(err.Error(), "(validation_errors)") {
+		t.Fatalf("code missing from %q", err)
+	}
+	if be := api.BatchErrors(); len(be) != 1 || be[1] == nil {
+		t.Fatalf("batch errors %v", be)
+	}
+}
+
+func TestCheckoutAmountDueOmittedVersusZero(t *testing.T) {
+	var omitted, zero nozle.CheckoutResult
+	if err := json.Unmarshal([]byte(`{"type":"x"}`), &omitted); err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal([]byte(`{"amount_due_cents":0}`), &zero); err != nil {
+		t.Fatal(err)
+	}
+	if omitted.AmountDueCents != "" || zero.AmountDueCents != "0" {
+		t.Fatalf("omitted %q zero %q", omitted.AmountDueCents, zero.AmountDueCents)
 	}
 }
