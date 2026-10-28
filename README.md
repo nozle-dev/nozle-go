@@ -52,6 +52,22 @@ if err != nil { return err }
 _ = checkout
 ```
 
+### Currencies
+
+A plan family can be sold in several currencies, one plan per interval and currency. `Plans(ctx, nozle.WithCurrency("EUR"))` lists family plans in that currency, `nozle.WithExternalCustomerID(id)` in the customer's locked currency, and without either each family shows its default currency. A family plan has `Family` (`Code`, `Currencies`, `DefaultCurrency`) and `Prices` (every variant: `Currency`, `Interval`, `PlanCode`, `AmountCents`).
+
+`CheckoutParams` and `SubscribeParams` take `PlanFamilyCode`, `Interval` and optional `Currency` instead of `PlanCode`; Core picks the variant (without `Currency`: the customer's locked currency, else the family's default). Needs Core 11.10.0.
+
+```go
+checkout, err := client.Checkout(ctx, nozle.CheckoutParams{
+    CustomerID: "customer-123",
+    PlanFamilyCode: "pro",
+    Interval: "yearly",
+    Currency: "EUR",
+    ReturnURL: "https://merchant.example/billing/complete",
+})
+```
+
 ### Payment providers: Stripe and Razorpay
 
 `Checkout` and `CheckoutInvoice` use the payment provider connected to your organization and assigned to the customer. The result's `Type` tells you what to do next. Branch on it; a checkout URL or provider callback alone does not prove fulfillment.

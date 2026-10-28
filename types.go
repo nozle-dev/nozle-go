@@ -34,6 +34,26 @@ type Plan struct {
 	// subscriptions get. Plans returns current versions only.
 	Version   int  `json:"version"`
 	IsCurrent bool `json:"is_current"`
+	// Family is the plan family this plan is a variant of; nil for a plan without a family.
+	Family *PlanFamilyRef `json:"family,omitempty"`
+	// Prices lists every current variant of the family: one price per interval and currency.
+	Prices []PlanPrice `json:"prices,omitempty"`
+}
+
+// PlanFamilyRef is a plan's family as the catalog returns it: the currencies it is sold in, in order, and the
+// default one.
+type PlanFamilyRef struct {
+	Code            string   `json:"code"`
+	Currencies      []string `json:"currencies"`
+	DefaultCurrency string   `json:"default_currency"`
+}
+
+// PlanPrice is one variant of a plan family: the plan sold for an interval in a currency.
+type PlanPrice struct {
+	Currency    string `json:"currency"`
+	Interval    string `json:"interval"`
+	PlanCode    string `json:"plan_code"`
+	AmountCents int    `json:"amount_cents"`
 }
 
 // TrackParams holds the fields for a single usage event.
@@ -61,6 +81,11 @@ type CheckoutParams struct {
 	OrganizationID string // Deprecated: use CustomerID
 	CustomerID     string
 	PlanCode       string
+	// PlanFamilyCode with Interval (and optional Currency) replaces PlanCode: Core picks the family's variant.
+	// Without Currency it uses the customer's locked currency, else the family's default.
+	PlanFamilyCode string
+	Interval       string
+	Currency       string
 	ReturnURL      string
 	// CancelURL is where Stripe sends a customer who leaves the hosted page. It is validated like
 	// ReturnURL and defaults to it. A return URL may contain the literal {CHECKOUT_SESSION_ID}.
@@ -131,6 +156,10 @@ type CheckoutResult struct {
 type SubscribeParams struct {
 	CustomerID string
 	PlanCode   string
+	// PlanFamilyCode with Interval (and optional Currency) replaces PlanCode: Core picks the family's variant.
+	PlanFamilyCode string
+	Interval       string
+	Currency       string
 	// PlanVersion, when set, sells that version of PlanCode instead of the current one (for example an older price).
 	// The same customer and code again keep the subscription's own version; another version of an existing
 	// subscription returns a 422 *APIError.

@@ -5,6 +5,33 @@ import (
 	"net/url"
 )
 
+// planFields is what a checkout or subscription sells: plan_code, or plan_family_code + interval (+ currency).
+func planFields(op, planCode, familyCode, interval, currency string) (map[string]any, error) {
+	if familyCode == "" {
+		if interval != "" || currency != "" {
+			return nil, &ValidationError{op, "Interval and Currency need PlanFamilyCode"}
+		}
+		if err := required(op, "plan_code", planCode); err != nil {
+			return nil, err
+		}
+		return map[string]any{"plan_code": planCode}, nil
+	}
+	if planCode != "" {
+		return nil, &ValidationError{op, "pass PlanCode or PlanFamilyCode, not both"}
+	}
+	if err := required(op, "plan_family_code", familyCode); err != nil {
+		return nil, err
+	}
+	if err := required(op, "interval", interval); err != nil {
+		return nil, err
+	}
+	body := map[string]any{"plan_family_code": familyCode, "interval": interval}
+	if currency != "" {
+		body["currency"] = currency
+	}
+	return body, nil
+}
+
 // Checkout creates a payment-aware checkout. QuoteID requires SubscriptionID.
 func (c *Client) Checkout(ctx context.Context, p CheckoutParams) (CheckoutResult, error) {
 	var out CheckoutResult
@@ -18,13 +45,14 @@ func (c *Client) Checkout(ctx context.Context, p CheckoutParams) (CheckoutResult
 	if err := required("checkout", "customer_id", customer); err != nil {
 		return out, err
 	}
-	if err := required("checkout", "plan_code", p.PlanCode); err != nil {
+	body, err := planFields("checkout", p.PlanCode, p.PlanFamilyCode, p.Interval, p.Currency)
+	if err != nil {
 		return out, err
 	}
 	if p.QuoteID != "" && p.SubscriptionID == "" {
 		return out, &ValidationError{"checkout", "QuoteID requires SubscriptionID"}
 	}
-	body := map[string]any{"customer_id": customer, "plan_code": p.PlanCode}
+	body["customer_id"] = customer
 	if p.ReturnURL != "" {
 		body["return_url"] = p.ReturnURL
 	}
@@ -43,7 +71,7 @@ func (c *Client) Checkout(ctx context.Context, p CheckoutParams) (CheckoutResult
 	if p.RegisterMandate != nil {
 		body["register_mandate"] = *p.RegisterMandate
 	}
-	err := c.request(ctx, "checkout", "POST", false, "/api/v1/checkout", body, &out, p.IdempotencyKey)
+	err = c.request(ctx, "checkout", "POST", false, "/api/v1/checkout", body, &out, p.IdempotencyKey)
 	c.subscriptions.forget(customer) // the paid or scheduled change may replace the active subscription
 	return out, err
 }
@@ -150,11 +178,15 @@ func (c *Client) Subscribe(ctx context.Context, p SubscribeParams) (SubscribeRes
 	if p.PlanVersion < 0 {
 		return out, &ValidationError{"subscribe", "plan version must be 1 or more, or zero for the current version"}
 	}
-	body := map[string]any{"customer_id": p.CustomerID, "plan_code": p.PlanCode}
+	body, err := planFields("subscribe", p.PlanCode, p.PlanFamilyCode, p.Interval, p.Currency)
+	if err != nil {
+		return out, err
+	}
+	body["customer_id"] = p.CustomerID
 	if p.PlanVersion > 0 {
 		body["plan_version"] = p.PlanVersion
 	}
-	err := c.request(ctx, "subscribe", "POST", false, "/api/v1/subscribe", body, &out, "")
+	err = c.request(ctx, "subscribe", "POST", false, "/api/v1/subscribe", body, &out, "")
 	c.subscriptions.forget(p.CustomerID)
 	if err == nil && out.Subscription.ExternalID != "" {
 		out.SubscriptionID = out.Subscription.ExternalID
