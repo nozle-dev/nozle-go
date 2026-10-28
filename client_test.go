@@ -367,7 +367,7 @@ func TestClient_Checkout(t *testing.T) {
 		}
 		json.NewDecoder(r.Body).Decode(&gotBody)
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"client_secret":"cs_123","invoice_id":"inv-1","amount_cents":999,"currency":"USD"}`))
+		w.Write([]byte(`{"type":"hosted","url":"https://checkout.stripe.com/c/pay/cs_123","payment_url":"https://checkout.stripe.com/c/pay/cs_123","invoice_id":"inv-1","amount_cents":999,"currency":"USD"}`))
 	}))
 	defer srv.Close()
 
@@ -375,13 +375,17 @@ func TestClient_Checkout(t *testing.T) {
 	result, err := c.Checkout(context.Background(), nozle.CheckoutParams{
 		OrganizationID: "cust-1",
 		PlanCode:       "starter",
-		ReturnURL:      "https://example.com/success",
+		ReturnURL:      "https://example.com/success?s={CHECKOUT_SESSION_ID}",
+		CancelURL:      "https://example.com/pricing",
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if result.ClientSecret != "cs_123" {
-		t.Errorf("want client_secret=cs_123, got %s", result.ClientSecret)
+	if result.Type != "hosted" || result.URL != "https://checkout.stripe.com/c/pay/cs_123" || result.PaymentURL != result.URL {
+		t.Errorf("want hosted result with url, got %+v", result)
+	}
+	if gotBody["cancel_url"] != "https://example.com/pricing" || gotBody["return_url"] != "https://example.com/success?s={CHECKOUT_SESSION_ID}" {
+		t.Errorf("cancel_url / return_url not sent: %v", gotBody)
 	}
 	if result.AmountCents != 999 {
 		t.Errorf("want amount_cents=999, got %d", result.AmountCents)

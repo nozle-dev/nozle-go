@@ -28,6 +28,9 @@ func (c *Client) Checkout(ctx context.Context, p CheckoutParams) (CheckoutResult
 	if p.ReturnURL != "" {
 		body["return_url"] = p.ReturnURL
 	}
+	if p.CancelURL != "" {
+		body["cancel_url"] = p.CancelURL
+	}
 	if p.SubscriptionID != "" {
 		body["subscription_id"] = p.SubscriptionID
 	}
@@ -45,6 +48,18 @@ func (c *Client) Checkout(ctx context.Context, p CheckoutParams) (CheckoutResult
 	return out, err
 }
 func (c *Client) CheckoutInvoice(ctx context.Context, invoiceID, key string) (CheckoutResult, error) {
+	return c.CheckoutInvoiceWithOptions(ctx, invoiceID, CheckoutInvoiceOptions{IdempotencyKey: key})
+}
+
+// CheckoutInvoiceOptions are the optional fields of CheckoutInvoiceWithOptions.
+type CheckoutInvoiceOptions struct {
+	// CancelURL is where Stripe sends a customer who leaves the hosted page. Validated like a return URL.
+	CancelURL      string
+	IdempotencyKey string
+}
+
+// CheckoutInvoiceWithOptions is CheckoutInvoice with a CancelURL.
+func (c *Client) CheckoutInvoiceWithOptions(ctx context.Context, invoiceID string, opts CheckoutInvoiceOptions) (CheckoutResult, error) {
 	var out CheckoutResult
 	if err := validateKey(c.apiKey, "checkout_invoice"); err != nil {
 		return out, err
@@ -52,7 +67,11 @@ func (c *Client) CheckoutInvoice(ctx context.Context, invoiceID, key string) (Ch
 	if err := required("checkout_invoice", "invoice_id", invoiceID); err != nil {
 		return out, err
 	}
-	err := c.request(ctx, "checkout_invoice", "POST", false, "/api/v1/checkout", map[string]any{"invoice_id": invoiceID}, &out, key)
+	body := map[string]any{"invoice_id": invoiceID}
+	if opts.CancelURL != "" {
+		body["cancel_url"] = opts.CancelURL
+	}
+	err := c.request(ctx, "checkout_invoice", "POST", false, "/api/v1/checkout", body, &out, opts.IdempotencyKey)
 	c.subscriptions.forget("") // an invoice carries no customer id here, so drop every entry
 	return out, err
 }
@@ -78,6 +97,10 @@ func (c *Client) ManagePaymentMethod(ctx context.Context, customerID, returnURL,
 	err := c.request(ctx, "manage_payment_method", "POST", false, "/api/v1/customers/"+segment(customerID)+"/payment-method/manage", body, &out, key)
 	return out.ManagePaymentMethod, err
 }
+
+// CheckoutStatus reads a paid upgrade (pass its PlanUpgradeIntentID with the customer and subscription
+// scope) or a Razorpay operation. It does not accept a Stripe CheckoutID ("cs_..."): a new-subscription
+// or invoice Stripe checkout has no status call, so confirm it through webhooks or by reloading billing state.
 func (c *Client) CheckoutStatus(ctx context.Context, checkoutID string, scope CheckoutScope) (CheckoutStatus, error) {
 	var out CheckoutStatus
 	if err := validateKey(c.apiKey, "checkout_status"); err != nil {

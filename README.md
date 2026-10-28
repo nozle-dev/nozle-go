@@ -58,26 +58,30 @@ _ = checkout
 
 | `Type` | Provider | Next step |
 | --- | --- | --- |
-| `stripe` | Stripe | Send `ClientSecret` (a `cs_` embedded Checkout Session secret) to the browser |
+| `hosted` | Stripe, Razorpay link | Redirect the customer to `URL` (the Stripe Checkout page; `PaymentURL` is the same address), then confirm as described below (Stripe: `CheckoutID` is the Stripe session id, not a status id) |
 | `razorpay` | Razorpay | Open the Razorpay modal with `KeyID`, `OrderID`, `AmountCents` and `Currency`, then verify |
-| `hosted` | Razorpay | Declared in the result types; `POST /checkout` does not return it for Razorpay. Invoice payment URLs and credit top-ups return a `payment_url` (an rzp.io payment link) with no checkout id to poll (the field is `PaymentURL`) |
 | `processing` | Razorpay or Stripe | Recover with `CheckoutStatus` and `CheckoutID` instead of starting another checkout. Razorpay returns it while the order is not ready; Stripe returns it when a quoted upgrade is replayed while its webhook is still pending |
 | `completed`, `scheduled` | Either | No payment is due now: credits covered it (`PaymentSource`), or the change takes effect later (`TransitionDirection`, `TransitionPolicy`, `EffectiveAt`) |
 
-**Stripe.** Plan and invoice checkout always create an embedded Checkout Session. They never return a Stripe-hosted URL or your Stripe publishable key, so the browser needs the `pk_` key for the Stripe account connected in Nozle. Credit top-up purchases are different: they return a Stripe-hosted `payment_url` (`checkout.stripe.com`, valid for 24 hours).
+**Stripe.** Every Stripe checkout is the Stripe-hosted Checkout page; there is no embedded form. `CheckoutID` of a Stripe result is the Stripe session id (`cs_...`), which `CheckoutStatus` does not accept. An upgrade session lasts 35 minutes, an Entity batch 23 hours. Redirect the customer to `URL`. Set `CancelURL` (or use `CheckoutInvoiceWithOptions`) to choose where Stripe sends a customer who leaves the page (validated like `ReturnURL`, defaults to it). A return URL may contain the literal `{CHECKOUT_SESSION_ID}`, which Stripe replaces with the Checkout Session id. Credit top-up purchases also return a Stripe-hosted `payment_url` (valid for 24 hours).
 
 ```go
 checkout, err := client.Checkout(ctx, nozle.CheckoutParams{
     CustomerID:     "customer-123",
     PlanCode:       "pro_monthly",
     ReturnURL:      "https://merchant.example/billing/complete",
+    CancelURL:      "https://merchant.example/pricing",
     IdempotencyKey: "customer-123-pro_monthly-v1",
 })
 if err != nil { return err }
-if checkout.Type == "stripe" {
-    // Return checkout.ClientSecret to the browser and mount Stripe Embedded Checkout.
-    // A new subscription has no checkout ID to poll: reload the subscription after
-    // Embedded Checkout completes. A paid upgrade carries PlanUpgradeIntentID.
+if checkout.Type == "hosted" {
+    // Redirect the customer to checkout.URL.
+    // Paid upgrade (checkout.PlanUpgradeIntentID): after they return, poll CheckoutStatus
+    //   with that ID and the customer and subscription scope; status is awaiting_payment,
+    //   processing, succeeded or expired.
+    // New subscription or invoice (checkout.InvoiceID): there is no status call. The customer
+    //   returns to your return URL; confirm with the invoice.payment_succeeded or subscription
+    //   webhook, or by reloading billing state (Can or the subscription read).
 }
 ```
 
@@ -372,6 +376,16 @@ if errors.As(err, &apiErr) {
 ```
 
 The SDK makes one HTTP attempt per call and never retries mutations automatically. Reuse the same idempotency key and payload if you deliberately retry after an uncertain response. A new key can create a second operation.
+
+### Workspace suspended or card required (402)
+
+When your Nozle workspace is suspended because its Nozle invoices are unpaid, every API call answers HTTP 402 with the code `workspace_suspended`. A workspace without a verified card answers 402 with the code `card_required` the same way. It comes back as a `*nozle.APIError` with `StatusCode` 402 and `Code()` `workspace_suspended` from `Can`, `Track`, `CheckUsage` and every other call; `Can` returns the error instead of an allowed or denied result. Never retry blindly: the SDK does not retry a 402. Add a card in the Nozle dashboard (`card_required`) or pay the Nozle invoices (`workspace_suspended`) and calls work again at once. Events sent during the suspension are refused, not queued.
+
+```go
+if errors.As(err, &apiErr) && apiErr.Code() == "workspace_suspended" {
+    // Tell your team to pay the Nozle invoices; not allowed, not denied.
+}
+```
 
 ## Development and examples
 

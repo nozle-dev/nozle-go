@@ -33,13 +33,13 @@ func TestCheckoutDecodesRazorpayStripeAndTransitionFields(t *testing.T) {
 		t.Fatalf("razorpay: %+v %v", razorpay, err)
 	}
 
-	hosted, err := checkoutClient(t, 200, `{"type":"hosted","payment_url":"https://rzp.io/i/abc","checkout_id":"c2","amount_cents":500,"currency":"INR","expires_at":"2026-10-14T09:30:00.000Z","invoice_id":"inv-1"}`).Checkout(ctx, params)
+	hosted, err := checkoutClient(t, 200, `{"type":"hosted","url":"https://rzp.io/i/abc","payment_url":"https://rzp.io/i/abc","checkout_id":"c2","amount_cents":500,"currency":"INR","expires_at":"2026-10-14T09:30:00.000Z","invoice_id":"inv-1"}`).Checkout(ctx, params)
 	if err != nil || hosted.PaymentURL != "https://rzp.io/i/abc" || hosted.CheckoutID != "c2" || hosted.ExpiresAt == "" || hosted.InvoiceID != "inv-1" || hosted.Recurring {
 		t.Fatalf("hosted: %+v %v", hosted, err)
 	}
 
-	stripe, err := checkoutClient(t, 200, `{"type":"stripe","client_secret":"cs_test_1","clientSecret":"cs_test_1","plan_upgrade_intent_id":"intent-2","amount_cents":1000,"currency":"USD"}`).Checkout(ctx, params)
-	if err != nil || stripe.ClientSecret != "cs_test_1" || stripe.PlanUpgradeIntentID != "intent-2" {
+	stripe, err := checkoutClient(t, 200, `{"type":"hosted","url":"https://checkout.stripe.com/c/pay/cs_test_1","payment_url":"https://checkout.stripe.com/c/pay/cs_test_1","plan_upgrade_intent_id":"intent-2","amount_cents":1000,"currency":"USD"}`).Checkout(ctx, params)
+	if err != nil || stripe.Type != "hosted" || stripe.URL != "https://checkout.stripe.com/c/pay/cs_test_1" || stripe.PlanUpgradeIntentID != "intent-2" {
 		t.Fatalf("stripe: %+v %v", stripe, err)
 	}
 
