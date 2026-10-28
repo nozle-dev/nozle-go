@@ -11,16 +11,38 @@ import (
 // same IDs, so Engine records each event once. Do not use the slice from another goroutine during
 // the call.
 func (c *Client) Meter(ctx context.Context, events []MeterEvent) error {
+	_, err := c.MeterWithResult(ctx, events)
+	return err
+}
+
+// MeterResult is the 200 body of a Meter batch: the events Engine accepted. The batch is all-or-nothing, so
+// a 200 means every event was recorded; a rejected batch is a *APIError whose BatchErrors names the failing indexes.
+type MeterResult struct {
+	Events []MeterAccepted `json:"events"`
+}
+
+// MeterAccepted is one accepted event as Engine echoes it.
+type MeterAccepted struct {
+	TransactionID          string         `json:"transaction_id"`
+	Code                   string         `json:"code"`
+	ExternalCustomerID     string         `json:"external_customer_id"`
+	ExternalSubscriptionID string         `json:"external_subscription_id"`
+	Timestamp              string         `json:"timestamp"`
+	Properties             map[string]any `json:"properties"`
+}
+
+// MeterWithResult is Meter that also returns the accepted events. Same ID and retry rules as Meter.
+func (c *Client) MeterWithResult(ctx context.Context, events []MeterEvent) (*MeterResult, error) {
 	if err := validateKey(c.apiKey, "meter"); err != nil {
-		return err
+		return nil, err
 	}
 	if len(events) == 0 || len(events) > 100 {
-		return errors.New("nozle: batch size must be 1-100")
+		return nil, errors.New("nozle: batch size must be 1-100")
 	}
 	payload := make([]map[string]any, len(events))
 	for i, e := range events {
 		if e.CustomerID == "" || e.Event == "" || e.SubscriptionID == "" {
-			return &ValidationError{"meter", "customer, event and subscription IDs are required"}
+			return nil, &ValidationError{"meter", "customer, event and subscription IDs are required"}
 		}
 		if e.TransactionID == "" {
 			events[i].TransactionID = generateUUID()
@@ -34,11 +56,15 @@ func (c *Client) Meter(ctx context.Context, events []MeterEvent) error {
 		if e.Timestamp != "" {
 			normalized, err := eventTimestamp(e.Timestamp)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			event["timestamp"] = normalized
 		}
 		payload[i] = event
 	}
-	return c.request(ctx, "meter", "POST", false, "/api/v1/events/batch", map[string]any{"events": payload}, nil, "")
+	var out MeterResult
+	if err := c.request(ctx, "meter", "POST", false, "/api/v1/events/batch", map[string]any{"events": payload}, &out, ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
 }

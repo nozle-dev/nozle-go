@@ -99,7 +99,27 @@ type APIError struct {
 }
 
 func (e *APIError) Error() string {
+	if code := e.Code(); code != "" {
+		return fmt.Sprintf("nozle: %s %s returned %d (%s)", e.Method, e.Path, e.StatusCode, code)
+	}
 	return fmt.Sprintf("nozle: %s %s returned %d", e.Method, e.Path, e.StatusCode)
+}
+
+// BatchErrors returns the per-event errors of a rejected Meter batch (a 422 whose error_details is keyed by
+// the index of the event in the request), or nil. The batch is all-or-nothing: when it is rejected no event was recorded.
+func (e *APIError) BatchErrors() map[int]any {
+	details, _ := e.Details.(map[string]any)
+	listed, _ := details["error_details"].(map[string]any)
+	out := map[int]any{}
+	for key, value := range listed {
+		if i, err := strconv.Atoi(key); err == nil {
+			out[i] = value
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 // Code returns the top-level error code of the response, for example

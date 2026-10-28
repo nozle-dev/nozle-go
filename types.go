@@ -101,7 +101,8 @@ type CheckoutResult struct {
 	// PlanUpgradeIntentID is set instead of InvoiceID for a paid upgrade.
 	PlanUpgradeIntentID string `json:"plan_upgrade_intent_id"`
 	// AmountCents is in the currency's minor unit (paise for INR).
-	AmountCents    int         `json:"amount_cents"`
+	AmountCents int `json:"amount_cents"`
+	// AmountDueCents is "" when Engine omitted it and "0" when it sent 0.
 	AmountDueCents json.Number `json:"amount_due_cents"`
 	Currency       string      `json:"currency"`
 	// ExpiresAt is set on Razorpay, hosted and processing results.
