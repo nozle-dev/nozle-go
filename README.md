@@ -54,7 +54,7 @@ _ = checkout
 
 ### Currencies
 
-A plan family can be sold in several currencies, one plan per interval and currency. `Plans(ctx, nozle.WithCurrency("EUR"))` lists family plans in that currency, `nozle.WithExternalCustomerID(id)` in the customer's locked currency, and without either each family shows its default currency. A family plan has `Family` (`Code`, `Currencies`, `DefaultCurrency`) and `Prices` (every variant: `Currency`, `Interval`, `PlanCode`, `AmountCents`).
+A plan family can be sold in several currencies, one plan per interval and currency. With a secret key, `Plans(ctx)` lists every plan in every currency; `Plans(ctx, nozle.WithCurrency("EUR"))` lists only that currency, and `nozle.WithExternalCustomerID(id)` only the customer's locked currency (ignored when your organization allows several currencies per customer). A publishable key without `WithCurrency` gets each family's default-currency plans. A family plan has `Family` (`Code`, `Currencies`, `DefaultCurrency`) and `Prices` (every variant: `Currency`, `Interval`, `PlanCode`, `AmountCents`).
 
 `CheckoutParams` and `SubscribeParams` take `PlanFamilyCode`, `Interval` and optional `Currency` instead of `PlanCode`; Core picks the variant (without `Currency`: the customer's locked currency, else the family's default). Needs Core 11.10.0.
 

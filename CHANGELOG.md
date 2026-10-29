@@ -12,7 +12,7 @@ Needs Core 11.10.0 (one plan family sold in several currencies).
 
 ### Added
 
-- `Plans(ctx, opts...)` takes `WithCurrency(code)` and `WithExternalCustomerID(id)` (`PlansOption`), sent as `currency` and `external_customer_id`. `Plans(ctx)` works as before. Family plans are listed in that currency, else the customer's locked currency, else each family's default.
+- `Plans(ctx, opts...)` takes `WithCurrency(code)` and `WithExternalCustomerID(id)` (`PlansOption`), sent as `currency` and `external_customer_id`. `Plans(ctx)` works as before. With a secret key and neither option, every plan is listed in every currency; `WithCurrency` keeps that currency, and `WithExternalCustomerID` the customer's locked currency (ignored when the organization allows several currencies per customer). A publishable key without `WithCurrency` gets each family's default-currency plans.
 - `Plan.Family` (`*PlanFamilyRef`: `Code`, `Currencies`, `DefaultCurrency`) and `Plan.Prices` (`[]PlanPrice`: `Currency`, `Interval`, `PlanCode`, `AmountCents`).
 - `CheckoutParams` and `SubscribeParams` gain `PlanFamilyCode`, `Interval` and `Currency`, sent instead of `plan_code`.
 
