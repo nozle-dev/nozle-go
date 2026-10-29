@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-10-29
+
+Needs Core 11.10.0 (one plan family sold in several currencies).
+
+### Added
+
+- `Plans(ctx, opts...)` takes `WithCurrency(code)` and `WithExternalCustomerID(id)` (`PlansOption`), sent as `currency` and `external_customer_id`. `Plans(ctx)` works as before. With a secret key and neither option, every plan is listed in every currency; `WithCurrency` keeps that currency, and `WithExternalCustomerID` the customer's locked currency (ignored when the organization allows several currencies per customer). A publishable key without `WithCurrency` gets each family's default-currency plans.
+- `Plan.Family` (`*PlanFamilyRef`: `Code`, `Currencies`, `DefaultCurrency`) and `Plan.Prices` (`[]PlanPrice`: `Currency`, `Interval`, `PlanCode`, `AmountCents`).
+- `CheckoutParams` and `SubscribeParams` gain `PlanFamilyCode`, `Interval` and `Currency`, sent instead of `plan_code`.
+
+### Changed
+
+- `Checkout` and `Subscribe` return a `*ValidationError` before any request for both `PlanCode` and `PlanFamilyCode`, a family without `Interval`, or `Interval`/`Currency` without a family. `Subscribe` now also rejects an empty `PlanCode` locally (the server rejected it before).
+
 ## [0.19.0] - 2026-10-28
 
 ### Added

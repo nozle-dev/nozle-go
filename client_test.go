@@ -3,8 +3,10 @@ package nozle_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"testing"
 	"time"
 
@@ -659,5 +661,85 @@ func TestEntitySubscriptionRequests_leaveOutUnsetOptionalFields(t *testing.T) {
 	}
 	if _, set := batch["return_url"]; set {
 		t.Errorf("batch body = %v, want no return_url", batch)
+	}
+}
+
+func TestClient_PlansCurrencyAndFamily(t *testing.T) {
+	var queries []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		queries = append(queries, r.URL.RawQuery)
+		w.Write([]byte(`{"plans":[{"code":"pro_eur","name":"Pro","amount_cents":4500,"amount_currency":"EUR","interval":"monthly",
+			"family":{"code":"pro","currencies":["USD","EUR"],"default_currency":"USD"},
+			"prices":[{"currency":"USD","interval":"monthly","plan_code":"pro","amount_cents":4900},
+			          {"currency":"EUR","interval":"monthly","plan_code":"pro_eur","amount_cents":4500}]}]}`))
+	}))
+	defer srv.Close()
+
+	c := nozle.New("sk_test-key", nozle.WithBaseURL(srv.URL))
+	plans, err := c.Plans(context.Background(), nozle.WithCurrency("EUR"), nozle.WithExternalCustomerID("cus 1"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.Plans(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"currency=EUR&external_customer_id=cus+1", ""}; !reflect.DeepEqual(queries, want) {
+		t.Errorf("queries = %q, want %q", queries, want)
+	}
+	want := nozle.Plan{
+		Code: "pro_eur", Name: "Pro", AmountCents: 4500, AmountCurrency: "EUR", Interval: "monthly",
+		Family: &nozle.PlanFamilyRef{Code: "pro", Currencies: []string{"USD", "EUR"}, DefaultCurrency: "USD"},
+		Prices: []nozle.PlanPrice{
+			{Currency: "USD", Interval: "monthly", PlanCode: "pro", AmountCents: 4900},
+			{Currency: "EUR", Interval: "monthly", PlanCode: "pro_eur", AmountCents: 4500},
+		},
+	}
+	if !reflect.DeepEqual(plans, []nozle.Plan{want}) {
+		t.Errorf("plans = %+v", plans)
+	}
+}
+
+func TestClient_CheckoutAndSubscribeByPlanFamily(t *testing.T) {
+	var bodies []map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]any
+		json.NewDecoder(r.Body).Decode(&body)
+		bodies = append(bodies, body)
+		w.Write([]byte(`{"type":"completed","status":"succeeded"}`))
+	}))
+	defer srv.Close()
+
+	c := nozle.New("sk_test-key", nozle.WithBaseURL(srv.URL))
+	ctx := context.Background()
+	if _, err := c.Checkout(ctx, nozle.CheckoutParams{CustomerID: "cust", PlanFamilyCode: "pro", Interval: "yearly", Currency: "EUR"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.Subscribe(ctx, nozle.SubscribeParams{CustomerID: "cust", PlanFamilyCode: "pro", Interval: "monthly"}); err != nil {
+		t.Fatal(err)
+	}
+	want := []map[string]any{
+		{"customer_id": "cust", "plan_family_code": "pro", "interval": "yearly", "currency": "EUR"},
+		{"customer_id": "cust", "plan_family_code": "pro", "interval": "monthly"},
+	}
+	if !reflect.DeepEqual(bodies, want) {
+		t.Errorf("bodies = %v, want %v", bodies, want)
+	}
+
+	invalid := []nozle.CheckoutParams{
+		{CustomerID: "cust", PlanCode: "pro", PlanFamilyCode: "pro", Interval: "monthly"},
+		{CustomerID: "cust", PlanFamilyCode: "pro"},
+		{CustomerID: "cust", PlanCode: "pro", Currency: "EUR"},
+	}
+	for _, p := range invalid {
+		var ve *nozle.ValidationError
+		if _, err := c.Checkout(ctx, p); !errors.As(err, &ve) {
+			t.Errorf("Checkout(%+v) err = %v, want ValidationError", p, err)
+		}
+		if _, err := c.Subscribe(ctx, nozle.SubscribeParams{CustomerID: p.CustomerID, PlanCode: p.PlanCode, PlanFamilyCode: p.PlanFamilyCode, Interval: p.Interval, Currency: p.Currency}); !errors.As(err, &ve) {
+			t.Errorf("Subscribe(%+v) err = %v, want ValidationError", p, err)
+		}
+	}
+	if len(bodies) != 2 {
+		t.Errorf("invalid params reached the server: %d requests", len(bodies))
 	}
 }
