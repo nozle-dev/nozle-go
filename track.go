@@ -28,10 +28,6 @@ func (c *Client) TrackWithID(ctx context.Context, p TrackParams) (string, error)
 	if err := required("track", "event", p.Event); err != nil {
 		return "", err
 	}
-	sub, err := c.subscriptionOrActive(ctx, "track", p.CustomerID, p.SubscriptionID)
-	if err != nil {
-		return "", err
-	}
 	id := p.TransactionID
 	if id == "" {
 		id = generateUUID()
@@ -40,7 +36,11 @@ func (c *Client) TrackWithID(ctx context.Context, p TrackParams) (string, error)
 	if properties == nil {
 		properties = map[string]any{}
 	}
-	event := map[string]any{"transaction_id": id, "external_customer_id": p.CustomerID, "external_subscription_id": sub, "code": p.Event, "properties": properties}
+	event := map[string]any{"transaction_id": id, "external_customer_id": p.CustomerID, "code": p.Event, "properties": properties}
+	if p.SubscriptionID != "" {
+		// Optional: without it Engine resolves the customer's one active subscription (422 active_subscription_ambiguous / active_subscription_not_found).
+		event["external_subscription_id"] = p.SubscriptionID
+	}
 	if p.Timestamp != "" {
 		normalized, err := eventTimestamp(p.Timestamp)
 		if err != nil {

@@ -141,7 +141,7 @@ func TestMeter_callerRetryReusesGeneratedIDs(t *testing.T) {
 				w.WriteHeader(http.StatusServiceUnavailable)
 				return true
 			})
-			c := nozle.New("sk_test-key", nozle.WithBaseURL(srv.URL), nozle.WithEventsURL(srv.URL))
+			c := nozle.New("sk_test-key", nozle.WithBaseURL(srv.URL), nozle.WithEventsURL(srv.URL), nozle.WithMaxRetries(0))
 			events := meterBatch()
 			firstCall(t, c, events)
 			if err := c.Meter(context.Background(), events); err != nil {
