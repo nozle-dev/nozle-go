@@ -58,7 +58,6 @@ type Client struct {
 	timeout                          time.Duration
 	httpClient                       *http.Client
 	usageTimestamps                  usageTimestampMemo
-	webhookKey                       webhookKeyCache
 	subscriptions                    subscriptionCache
 }
 

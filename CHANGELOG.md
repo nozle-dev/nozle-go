@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.22.0] - 2026-10-30
+
+Needs Core with signed Standard Webhooks.
+
+### Changed
+
+- Breaking: `VerifyWebhook(ctx, body, header, opts...)` and `WebhookHandler(onEvent, opts...)` verify Standard Webhooks deliveries only: `webhook-id`, `webhook-timestamp` and `webhook-signature`, HMAC-SHA256 over `id.timestamp.body` with the endpoint's `whsec_` secret, 300 s tolerance, constant-time compare, any `v1,` signature (other versions ignored), no network call. The `hmacKey` parameter and the public-key read are gone. `WebhookEvent.ID` is `webhook-id`.
+
+### Added
+
+- `WebhookOption`: `WithWebhookSecrets` (several secrets while rotating), `WithWebhookTolerance`, `WithWebhookClock`. `WebhookVerificationError.Code` is `missing_signature`, `missing_secret`, `invalid_timestamp` (non-numeric or outside the tolerance), `invalid_signature` or `invalid_payload`, the same codes as the Node and Python SDKs.
+
 ## [0.21.0] - 2026-10-29
 
 ### Changed
