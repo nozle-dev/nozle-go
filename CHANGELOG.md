@@ -8,12 +8,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [0.22.0] - 2026-10-30
 
-Needs Core with the `standard` webhook signature scheme.
+Needs Core with signed Standard Webhooks.
+
+### Changed
+
+- Breaking: `VerifyWebhook(ctx, body, header, opts...)` and `WebhookHandler(onEvent, opts...)` verify Standard Webhooks deliveries only: `webhook-id`, `webhook-timestamp` and `webhook-signature`, HMAC-SHA256 over `id.timestamp.body` with the endpoint's `whsec_` secret, 300 s tolerance, constant-time compare, any `v1,` signature (other versions ignored), no network call. The `hmacKey` parameter and the public-key read are gone. `WebhookEvent.ID` is `webhook-id`.
 
 ### Added
 
-- `VerifyWebhook` and `WebhookHandler` verify `standard` (Standard Webhooks) deliveries: `webhook-id`, `webhook-timestamp` and `webhook-signature`, HMAC-SHA256 over `id.timestamp.body` with the `whsec_` secret, 300 s tolerance, constant-time compare, any `v1,` signature (other versions ignored), no network call. Selected when `X-Nozle-Signature-Algorithm` is `standard` or `webhook-signature` is present.
-- `WebhookOption`: `WithWebhookSecrets` (several secrets while rotating), `WithWebhookTolerance`, `WithWebhookClock`. Both functions take them as trailing variadic arguments, so existing calls compile unchanged. New error code `missing_webhook_secret`.
+- `WebhookOption`: `WithWebhookSecrets` (several secrets while rotating), `WithWebhookTolerance`, `WithWebhookClock`. New error code `missing_webhook_secret`.
 
 ## [0.21.0] - 2026-10-29
 
