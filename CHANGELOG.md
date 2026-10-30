@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.22.0] - 2026-10-30
+
+Needs Core with the `standard` webhook signature scheme.
+
+### Added
+
+- `VerifyWebhook` and `WebhookHandler` verify `standard` (Standard Webhooks) deliveries: `webhook-id`, `webhook-timestamp` and `webhook-signature`, HMAC-SHA256 over `id.timestamp.body` with the `whsec_` secret, 300 s tolerance, constant-time compare, any `v1,` signature (other versions ignored), no network call. Selected when `X-Nozle-Signature-Algorithm` is `standard` or `webhook-signature` is present.
+- `WebhookOption`: `WithWebhookSecrets` (several secrets while rotating), `WithWebhookTolerance`, `WithWebhookClock`. Both functions take them as trailing variadic arguments, so existing calls compile unchanged. New error code `missing_webhook_secret`.
+
 ## [0.21.0] - 2026-10-29
 
 ### Changed
