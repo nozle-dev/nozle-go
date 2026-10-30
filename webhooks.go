@@ -30,7 +30,8 @@ type WebhookEvent struct {
 }
 
 // WebhookVerificationError means the request is not a genuine Nozle webhook. Answer it with 400.
-// Code is missing_signature, missing_webhook_secret, invalid_signature or invalid_payload.
+// Code is missing_signature, missing_secret, invalid_timestamp, invalid_signature or invalid_payload,
+// the same codes as the Node and Python SDKs.
 type WebhookVerificationError struct {
 	Code    string
 	Message string
@@ -128,15 +129,15 @@ func verifyStandardWebhook(body []byte, header http.Header, cfg webhookConfig) e
 		return webhookError("missing_signature", "webhook-id, webhook-timestamp or webhook-signature header is missing")
 	}
 	if len(cfg.secrets) == 0 {
-		return webhookError("missing_webhook_secret", "standard webhooks need the endpoint secret (WithWebhookSecrets)")
+		return webhookError("missing_secret", "standard webhooks need the endpoint secret (WithWebhookSecrets)")
 	}
 	seconds, err := strconv.ParseInt(stamp, 10, 64)
 	if err != nil {
-		return webhookError("invalid_signature", "webhook-timestamp is not a number")
+		return webhookError("invalid_timestamp", "webhook-timestamp is not a number")
 	}
 	age := cfg.now().Sub(time.Unix(seconds, 0))
 	if age > cfg.tolerance || -age > cfg.tolerance {
-		return webhookError("invalid_signature", "webhook-timestamp is outside the allowed tolerance")
+		return webhookError("invalid_timestamp", "webhook-timestamp is outside the allowed tolerance")
 	}
 	signed := []byte(id + "." + stamp + ".")
 	signed = append(signed, body...)

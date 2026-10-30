@@ -16,7 +16,7 @@ Needs Core with signed Standard Webhooks.
 
 ### Added
 
-- `WebhookOption`: `WithWebhookSecrets` (several secrets while rotating), `WithWebhookTolerance`, `WithWebhookClock`. New error code `missing_webhook_secret`.
+- `WebhookOption`: `WithWebhookSecrets` (several secrets while rotating), `WithWebhookTolerance`, `WithWebhookClock`. `WebhookVerificationError.Code` is `missing_signature`, `missing_secret`, `invalid_timestamp` (non-numeric or outside the tolerance), `invalid_signature` or `invalid_payload`, the same codes as the Node and Python SDKs.
 
 ## [0.21.0] - 2026-10-29
 

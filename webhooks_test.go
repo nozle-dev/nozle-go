@@ -83,16 +83,16 @@ func TestVerifyWebhookStandard(t *testing.T) {
 	}{
 		{"wrong secret", body, header(sv.Signature), []WebhookOption{WithWebhookSecrets(secondSecret), at(0)}, "invalid_signature"},
 		{"tampered body", []byte(`{"test": 2432232315}`), header(sv.Signature), []WebhookOption{WithWebhookSecrets(sv.Secret), at(0)}, "invalid_signature"},
-		{"301 s old", body, header(sv.Signature), []WebhookOption{WithWebhookSecrets(sv.Secret), at(301 * time.Second)}, "invalid_signature"},
+		{"301 s old", body, header(sv.Signature), []WebhookOption{WithWebhookSecrets(sv.Secret), at(301 * time.Second)}, "invalid_timestamp"},
 		{"299 s old", body, header(sv.Signature), []WebhookOption{WithWebhookSecrets(sv.Secret), at(299 * time.Second)}, "invalid_payload"},
-		{"301 s in the future", body, header(sv.Signature), []WebhookOption{WithWebhookSecrets(sv.Secret), at(-301 * time.Second)}, "invalid_signature"},
+		{"301 s in the future", body, header(sv.Signature), []WebhookOption{WithWebhookSecrets(sv.Secret), at(-301 * time.Second)}, "invalid_timestamp"},
 		{"second of two signatures", body, header("v1,AAAA " + sv.Signature), []WebhookOption{WithWebhookSecrets(sv.Secret), at(0)}, "invalid_payload"},
 		{"rotated secrets", body, header(sv.Signature), []WebhookOption{WithWebhookSecrets(secondSecret, sv.Secret), at(0)}, "invalid_payload"},
 		{"v2 entry ignored", body, header("v2," + strings.TrimPrefix(sv.Signature, "v1,")), []WebhookOption{WithWebhookSecrets(sv.Secret), at(0)}, "invalid_signature"},
 		{"missing signature header", body, header(""), []WebhookOption{WithWebhookSecrets(sv.Secret), at(0)}, "missing_signature"},
 		{"no headers", body, http.Header{}, []WebhookOption{WithWebhookSecrets(sv.Secret), at(0)}, "missing_signature"},
-		{"no secret configured", body, header(sv.Signature), []WebhookOption{at(0)}, "missing_webhook_secret"},
-		{"custom tolerance", body, header(sv.Signature), []WebhookOption{WithWebhookSecrets(sv.Secret), WithWebhookTolerance(10 * time.Second), at(11 * time.Second)}, "invalid_signature"},
+		{"no secret configured", body, header(sv.Signature), []WebhookOption{at(0)}, "missing_secret"},
+		{"custom tolerance", body, header(sv.Signature), []WebhookOption{WithWebhookSecrets(sv.Secret), WithWebhookTolerance(10 * time.Second), at(11 * time.Second)}, "invalid_timestamp"},
 	}
 	for _, tc := range cases {
 		if got := verificationCode(verify(tc.body, tc.h, tc.opts...)); got != tc.want {
@@ -101,7 +101,7 @@ func TestVerifyWebhookStandard(t *testing.T) {
 	}
 	bad := header(sv.Signature)
 	bad.Set("webhook-timestamp", "soon")
-	if got := verificationCode(verify(body, bad, WithWebhookSecrets(sv.Secret), at(0))); got != "invalid_signature" {
+	if got := verificationCode(verify(body, bad, WithWebhookSecrets(sv.Secret), at(0))); got != "invalid_timestamp" {
 		t.Errorf("non-numeric timestamp: %q", got)
 	}
 }
