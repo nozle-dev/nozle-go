@@ -115,8 +115,8 @@ func (c *Client) subscriptionOrActive(ctx context.Context, op, customerID, subsc
 	return found.Subscriptions[0].ExternalID, nil
 }
 
-// subscriptionCache remembers each customer's single active subscription so Track does not look
-// it up on every call. Calls that can change the active subscription forget the entry.
+// subscriptionCache remembers each customer's single active subscription so usage reads do not look
+// it up on every call. Entries never expire; only this client's own subscription changes forget them. Calls that can change the active subscription forget the entry.
 type subscriptionCache struct {
 	mu    sync.Mutex
 	known map[string]string

@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-10-29
+
+### Changed
+
+- `Track` no longer looks up the customer's subscription. It sends the customer and the optional `SubscriptionID`; Engine resolves the one active subscription and answers 422 `active_subscription_ambiguous` or `active_subscription_not_found`, returned unchanged as `*APIError`. Usage reads still look it up (Core).
+- Default `WithMaxRetries` is now 2 (was 0), for calls that are safe to repeat only (reads, calls with an Idempotency-Key, repeatable ops). `WithMaxRetries(0)` disables retries.
+
 ## [0.20.0] - 2026-10-29
 
 Needs Core 11.10.0 (one plan family sold in several currencies).

@@ -47,7 +47,7 @@ func TestEventWritesUseEngineAndSubscriptionDiscoveryUsesCore(t *testing.T) {
 	if err := c.Meter(ctx, []nozle.MeterEvent{{CustomerID: "customer", SubscriptionID: "subscription", Event: "requests", TransactionID: "batch"}}); err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"GET /core/api/v1/subscriptions", "POST /engine/api/v1/events", "POST /engine/api/v1/events/batch"}
+	want := []string{"POST /engine/api/v1/events", "POST /engine/api/v1/events/batch"}
 	if !reflect.DeepEqual(calls, want) {
 		t.Fatalf("calls = %v, want %v", calls, want)
 	}

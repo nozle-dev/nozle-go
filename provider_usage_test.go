@@ -78,7 +78,7 @@ func TestProviderCaptureAttemptsEveryCostCategoryAfterOneFails(t *testing.T) {
 		}
 	}))
 	defer srv.Close()
-	c := nozle.New("sk_test", nozle.WithBaseURL(srv.URL), nozle.WithEventsURL(srv.URL))
+	c := nozle.New("sk_test", nozle.WithBaseURL(srv.URL), nozle.WithEventsURL(srv.URL), nozle.WithMaxRetries(0))
 	err := c.CaptureOpenAIUsage(context.Background(), nozle.ProviderCapture{
 		CustomerID: "c", SubscriptionID: "s", CostMeterCode: "ai", TransactionID: "tx-1",
 	}, nozle.OpenAIUsage{PromptTokens: 10, CachedInputTokens: 2, CompletionTokens: 5, ReasoningTokens: 1})

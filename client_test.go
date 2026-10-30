@@ -194,14 +194,13 @@ func TestClient_Track(t *testing.T) {
 		t.Fatalf("wrong event: %v", e)
 	}
 }
-func TestClient_Track_resolvesSingleSubscription(t *testing.T) {
-	calls := 0
+func TestClient_Track_makesNoSubscriptionLookup(t *testing.T) {
+	var got map[string]any
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		calls++
-		if r.Method == "GET" {
-			w.Write([]byte(`{"subscriptions":[{"external_id":"sub-1"}]}`))
-			return
+		if r.Method != "POST" || r.URL.Path != "/api/v1/events" {
+			t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
 		}
+		json.NewDecoder(r.Body).Decode(&got)
 		w.WriteHeader(201)
 	}))
 	defer srv.Close()
@@ -209,39 +208,82 @@ func TestClient_Track_resolvesSingleSubscription(t *testing.T) {
 	if err := c.Track(context.Background(), nozle.TrackParams{CustomerID: "cust-1", Event: "api_call"}); err != nil {
 		t.Fatal(err)
 	}
-	if calls != 2 {
-		t.Fatalf("want lookup + event, got %d calls", calls)
+	e := got["event"].(map[string]any)
+	if _, ok := e["external_subscription_id"]; ok || e["external_customer_id"] != "cust-1" {
+		t.Fatalf("want customer only, got %v", e)
 	}
 }
 
-func TestClient_Track_cachesSubscriptionUntilItChanges(t *testing.T) {
+func TestClient_Track_surfacesEngineAmbiguousCode(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(422)
+		w.Write([]byte(`{"code":"active_subscription_ambiguous","error":"several"}`))
+	}))
+	defer srv.Close()
+	c := nozle.New("sk_test-key", nozle.WithBaseURL(srv.URL), nozle.WithEventsURL(srv.URL))
+	err := c.Track(context.Background(), nozle.TrackParams{CustomerID: "cust-1", Event: "api_call"})
+	var api *nozle.APIError
+	if !errors.As(err, &api) || api.StatusCode != 422 || !api.HasCode("active_subscription_ambiguous") {
+		t.Fatalf("want 422 active_subscription_ambiguous, got %v", err)
+	}
+}
+
+func TestClient_defaultRetriesTwoForSafeCallsOnly(t *testing.T) {
+	var gets, posts int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "GET" {
+			gets++
+		} else {
+			posts++
+		}
+		w.WriteHeader(503)
+	}))
+	defer srv.Close()
+	c := nozle.New("sk_test-key", nozle.WithBaseURL(srv.URL), nozle.WithEventsURL(srv.URL), nozle.WithRetryDelay(time.Millisecond))
+	_, _ = c.PastUsage(context.Background(), "cust-1", "sub-1", 0)
+	if gets != 3 {
+		t.Fatalf("GET: want 1+2 attempts, got %d", gets)
+	}
+	_, _ = c.CancelSubscription(context.Background(), "cust-1", "sub-1", "")
+	if posts+gets != 4 {
+		t.Fatalf("unsafe call must not retry, got %d extra", posts+gets-3)
+	}
+	gets = 0
+	c = nozle.New("sk_test-key", nozle.WithBaseURL(srv.URL), nozle.WithEventsURL(srv.URL), nozle.WithMaxRetries(0))
+	_, _ = c.PastUsage(context.Background(), "cust-1", "sub-1", 0)
+	if gets != 1 {
+		t.Fatalf("explicit 0 disables, got %d", gets)
+	}
+}
+
+func TestClient_PastUsage_cachesSubscriptionUntilItChanges(t *testing.T) {
 	lookups := 0
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
-		case r.Method == "GET":
+		case r.URL.Path == "/api/v1/subscriptions":
 			lookups++
 			w.Write([]byte(`{"subscriptions":[{"external_id":"sub-1"}]}`))
 		case r.Method == "DELETE":
 			w.Write([]byte(`{"subscription":{"external_id":"sub-1","status":"terminated"}}`))
 		default:
-			w.WriteHeader(201)
+			w.Write([]byte(`{"usage_periods":[]}`))
 		}
 	}))
 	defer srv.Close()
 	c := nozle.New("sk_test-key", nozle.WithBaseURL(srv.URL), nozle.WithEventsURL(srv.URL))
 	ctx := context.Background()
 	for i := 0; i < 2; i++ {
-		if err := c.Track(ctx, nozle.TrackParams{CustomerID: "cust-1", Event: "api_call"}); err != nil {
+		if _, err := c.PastUsage(ctx, "cust-1", "", 0); err != nil {
 			t.Fatal(err)
 		}
 	}
 	if lookups != 1 {
-		t.Fatalf("want one lookup for two tracks, got %d", lookups)
+		t.Fatalf("want one lookup for two reads, got %d", lookups)
 	}
 	if _, err := c.CancelSubscription(ctx, "cust-1", "sub-1", ""); err != nil {
 		t.Fatal(err)
 	}
-	if err := c.Track(ctx, nozle.TrackParams{CustomerID: "cust-1", Event: "api_call"}); err != nil {
+	if _, err := c.PastUsage(ctx, "cust-1", "", 0); err != nil {
 		t.Fatal(err)
 	}
 	if lookups != 2 {
@@ -509,7 +551,7 @@ func TestClient_APIError_requestIDAndRetryAfter(t *testing.T) {
 				w.WriteHeader(http.StatusServiceUnavailable)
 			}))
 			defer srv.Close()
-			_, err := nozle.New("sk_test-key", nozle.WithBaseURL(srv.URL)).Plans(context.Background())
+			_, err := nozle.New("sk_test-key", nozle.WithBaseURL(srv.URL), nozle.WithMaxRetries(0)).Plans(context.Background())
 			var apiErr *nozle.APIError
 			if !nozle.AsAPIError(err, &apiErr) {
 				t.Fatal("expected APIError")
@@ -539,9 +581,9 @@ func retryServer(t *testing.T, statuses ...int) (*httptest.Server, *int) {
 	return srv, &calls
 }
 
-func TestRetries_offByDefault(t *testing.T) {
+func TestRetries_zeroDisables(t *testing.T) {
 	srv, calls := retryServer(t, 503)
-	_, err := nozle.New("sk_test-key", nozle.WithBaseURL(srv.URL)).Plans(context.Background())
+	_, err := nozle.New("sk_test-key", nozle.WithBaseURL(srv.URL), nozle.WithMaxRetries(0)).Plans(context.Background())
 	if err == nil || *calls != 1 {
 		t.Fatalf("err = %v, calls = %d", err, *calls)
 	}

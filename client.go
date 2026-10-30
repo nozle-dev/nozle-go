@@ -40,8 +40,8 @@ func WithEventsURL(u string) Option {
 }
 func WithTimeout(d time.Duration) Option { return func(c *Client) { c.timeout = d } }
 
-// WithMaxRetries sets how many extra attempts follow a network error, timeout, 429 or 5xx. The default is 0:
-// no retries. Only calls that are safe to repeat are retried.
+// WithMaxRetries sets how many extra attempts follow a network error, timeout, 429 or 5xx. The default is 2; 0 disables
+// retries. Only calls that are safe to repeat are retried.
 func WithMaxRetries(n int) Option { return func(c *Client) { c.maxRetries = max(0, n) } }
 
 // WithRetryDelay sets the first retry delay (default 500ms). It doubles each retry up to 10 seconds, or the
@@ -69,7 +69,7 @@ func New(apiKey string, opts ...Option) *Client {
 	if strings.TrimSpace(apiKey) == "" {
 		panic("nozle: apiKey must not be empty (pass it or set NOZLE_SECRET_KEY)")
 	}
-	c := &Client{host: DefaultHost, retryDelay: 500 * time.Millisecond, apiKey: apiKey, timeout: 10 * time.Second, httpClient: &http.Client{}}
+	c := &Client{host: DefaultHost, maxRetries: 2, retryDelay: 500 * time.Millisecond, apiKey: apiKey, timeout: 10 * time.Second, httpClient: &http.Client{}}
 	for _, o := range opts {
 		o(c)
 	}

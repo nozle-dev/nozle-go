@@ -64,12 +64,12 @@ func TestTrackWithID_returnsTheGeneratedTransactionID(t *testing.T) {
 	}
 }
 
-func TestTrack_subscriptionLookupFailureHasTheEngineCode(t *testing.T) {
-	for code, subs := range map[string]string{
-		"active_subscription_not_found": `{"subscriptions":[]}`,
-		"active_subscription_ambiguous": `{"subscriptions":[{"external_id":"a"},{"external_id":"b"}]}`,
-	} {
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.Write([]byte(subs)) }))
+func TestTrack_surfacesTheEngineSubscriptionCode(t *testing.T) {
+	for _, code := range []string{"active_subscription_not_found", "active_subscription_ambiguous"} {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(422)
+			w.Write([]byte(`{"code":"` + code + `","error":"x"}`))
+		}))
 		c := nozle.New("sk_test-key", nozle.WithBaseURL(srv.URL), nozle.WithEventsURL(srv.URL))
 		err := c.Track(context.Background(), nozle.TrackParams{CustomerID: "c", Event: "e"})
 		srv.Close()
