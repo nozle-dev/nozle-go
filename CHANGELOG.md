@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.25.0] - 2026-10-31
+
+### Added
+
+- `Client.NewEventBuffer(nozle.EventBufferOptions{...})` queues events in memory and sends them with `TrackBatch` from one background goroutine: when `MaxBatchSize` events are waiting (default 500, 1 to 5000), every `FlushInterval` (default 5 s; negative disables the timer), and on `Flush(ctx)` and `Close(ctx)`. One flush runs at a time. `Track(event) error` and `TrackWithID(event) (string, error)` return at once and set the transaction ID (generated UUID version 7 when empty), so every resend records the event once. `Len()` is the number of events waiting. The queue holds at most `MaxQueueSize` events (default 10 000, counting a request in flight); when it is full `Track` drops the new event and returns `ErrBufferFull`. A failed event goes back to the front of the queue and is dropped after `MaxAttempts` flushes (default 3). Every undelivered event goes to `OnError(err, events)` with an `*EventBufferError` whose `Code` is `buffer_full`, `rejected` (not retried; `Errors` has Engine's field codes), `failed` or `closed` (`Track` after `Close` returns `ErrBufferClosed`); without `OnError` the buffer logs through the standard `log` package. `Close(ctx)` stops the timer, flushes until the queue is empty and refuses later events; when `ctx` ends first it cancels the request in flight and reports what is left as `failed`. Go has no exit hook: call `defer buf.Close(ctx)`, and in serverless code flush before returning. Same behaviour as the Node and Python SDKs (NLD-7).
+
+### Known limitations
+
+- The OpenAI and Anthropic usage capture does not use the buffer yet. The queue is not persisted.
+
 ## [0.24.0] - 2026-10-31
 
 ### Added
