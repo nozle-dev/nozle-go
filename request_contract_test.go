@@ -205,6 +205,16 @@ func TestRequestBodiesFitTheAPISchemas(t *testing.T) {
 		"MarginSimulate": func() {
 			_, _ = c.MarginSimulate(ctx, nozle.MarginSimulateParams{MetricCode: "agent_execution", NewPriceDollars: 1}, nil)
 		},
+		"PreviewCreditNote": func() {
+			_, _ = c.PreviewCreditNote(ctx, nozle.PreviewCreditNoteParams{InvoiceID: "inv_1", Items: []nozle.CreditNoteItem{{FeeID: "fee_1", AmountCents: 500}}})
+		},
+		"CreateCreditNote": func() {
+			_, _ = c.CreateCreditNote(ctx, nozle.CreateCreditNoteParams{
+				InvoiceID: "inv_1", Items: []nozle.CreditNoteItem{{FeeID: "fee_1", AmountCents: 500}}, RefundAmountCents: 500,
+				Reason: nozle.CreditNoteReasonDuplicatedCharge, Description: "Charged twice", Metadata: map[string]string{"ticket": "T-1"},
+			})
+		},
+		"VoidCreditNote": func() { _, _ = c.VoidCreditNote(ctx, "cn_1") },
 		"ImportCreditBalance": func() {
 			_, _ = c.ImportCreditBalance(ctx, "cust", nozle.CreditBalanceImportParams{
 				ExternalSubscriptionID: "sub_1", CreditSystemCode: "ai_credits", GrantedAmount: "500", RemainingAmount: "320", DryRun: true,

@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.24.0] - 2026-10-31
+
+### Added
+
+- Credit notes and refunds: `PreviewCreditNote` (Core `POST /credit_notes/estimate`), `CreateCreditNote` with `CreditAmountCents`, `RefundAmountCents`, `OffsetAmountCents`, `Reason`, `Description` and `Metadata`, `RefundCreditNote` (preview, then a credit note refunded to the original payment method; `CreditRemainder` for partial payment), `ListCreditNotes`, `GetCreditNote` and `VoidCreditNote`. Types `CreditNote`, `CreditNotePreview`, `CreditNotePage`, `CreditNoteItem`, `CreditNoteReason`, and the `Code...` error constants. `CreateCreditNote`, `RefundCreditNote` and `VoidCreditNote` are never retried because they send no `Idempotency-Key` yet; `PreviewCreditNote`, `GetCreditNote` and `ListCreditNotes` follow `WithMaxRetries`. Needs a secret key and a workspace with credit notes enabled.
+
+
 ## [0.23.0] - 2026-10-31
 
 ### Added
