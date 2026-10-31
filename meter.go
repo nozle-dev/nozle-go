@@ -15,10 +15,12 @@ func (c *Client) Meter(ctx context.Context, events []MeterEvent) error {
 	return err
 }
 
-// MeterResult is the 200 body of a Meter batch: the events Engine accepted. The batch is all-or-nothing, so
-// a 200 means every event was recorded; a rejected batch is a *APIError whose BatchErrors names the failing indexes.
+// MeterResult is the 200 body of a Meter batch: the events Engine accepted, and ErrorDetails for the events it
+// refused, keyed by index ("2") then field. Engine 2.28.0 stores the valid events of a batch; an earlier Engine, or
+// a batch with no valid event, answers a *APIError whose BatchErrors names the failing indexes and stores nothing.
 type MeterResult struct {
-	Events []MeterAccepted `json:"events"`
+	Events       []MeterAccepted                `json:"events"`
+	ErrorDetails map[string]map[string][]string `json:"error_details,omitempty"`
 }
 
 // MeterAccepted is one accepted event as Engine echoes it.
