@@ -174,7 +174,7 @@ type UsageResult struct {
 	Advisory            bool             `json:"advisory"`
 	Allowed             bool             `json:"allowed"`
 	OperationID         string           `json:"operation_id"`
-	Reason              string           `json:"reason"`
+	Reason              RefusalReason    `json:"reason"`
 	MetricAmount        Decimal          `json:"metric_amount"`
 	CreditsRequired     Decimal          `json:"credits_required"`
 	CreditsConsumed     Decimal          `json:"credits_consumed"`
@@ -183,6 +183,9 @@ type UsageResult struct {
 	ProjectedRemaining  Decimal          `json:"projected_remaining"`
 	Deductions          []UsageDeduction `json:"deductions"`
 	ProjectedDeductions []UsageDeduction `json:"projected_deductions"`
+	// Budget is the used-up hard spend limit, with Reason budget_exceeded (Engine 2.31.0); such a refusal carries
+	// only Allowed, Reason and Budget.
+	Budget *Budget `json:"budget"`
 }
 
 // CreditHoldParams reserves credits for usage whose final amount is known later: the TrackUsage body
@@ -219,7 +222,11 @@ const (
 	CodeHoldTTLInvalid      = "hold_ttl_invalid"      // 400
 )
 
+// CreditHold is a credit hold, or a budget hold when Kind is HoldKindBudget (Engine 2.31.0): on a Feature billed in
+// money under a hard spend limit the hold reserves the call's estimated spend in AmountHeld and Currency, and the
+// credit fields are empty.
 type CreditHold struct {
+	Kind            string  `json:"kind"`
 	HoldID          string  `json:"hold_id"`
 	Status          string  `json:"status"`
 	CustomerID      string  `json:"customer_id"`
@@ -236,14 +243,19 @@ type CreditHold struct {
 	// ResolvedAt is empty while the hold is open.
 	ResolvedAt  string `json:"resolved_at"`
 	OperationID string `json:"operation_id"`
+	// AmountHeld is the spend a budget hold reserves, in major units of Currency; "0" once released, expired or denied.
+	AmountHeld Decimal `json:"amount_held"`
+	Currency   string  `json:"currency"`
 }
 
 // CreditHoldResult answers CreateCreditHold. A denial is Allowed=false with Reason, not an error.
 type CreditHoldResult struct {
 	CreditHold
-	Allowed   bool    `json:"allowed"`
-	Reason    string  `json:"reason"`
-	Available Decimal `json:"available"`
+	Allowed   bool          `json:"allowed"`
+	Reason    RefusalReason `json:"reason"`
+	Available Decimal       `json:"available"`
+	// Budget is a budget hold's limit, with Reason budget_exceeded when the estimated spend does not fit.
+	Budget *Budget `json:"budget"`
 }
 
 // CreditHoldFinalizeResult is the TrackUsage result of the actual usage plus the hold's outcome.
@@ -255,6 +267,11 @@ type CreditHoldFinalizeResult struct {
 	CreditsReleased Decimal `json:"credits_released"`
 	// HoldExpired is true when the hold had expired and the usage ran as a plain track.
 	HoldExpired bool `json:"hold_expired"`
+	// A budget hold's finalize answers the hold itself: Kind HoldKindBudget, its Status, AmountHeld and Currency.
+	Kind       string  `json:"kind"`
+	Status     string  `json:"status"`
+	AmountHeld Decimal `json:"amount_held"`
+	Currency   string  `json:"currency"`
 }
 
 type CreditHoldList struct {

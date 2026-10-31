@@ -31,6 +31,36 @@
       "subscription"
     ]
   },
+  "Budget": {
+    "properties": [
+      "as_of",
+      "currency",
+      "feature_code",
+      "held",
+      "limit",
+      "mode",
+      "period",
+      "period_end",
+      "period_start",
+      "remaining",
+      "spent",
+      "status"
+    ],
+    "required": [
+      "as_of",
+      "currency",
+      "feature_code",
+      "held",
+      "limit",
+      "mode",
+      "period",
+      "period_end",
+      "period_start",
+      "remaining",
+      "spent",
+      "status"
+    ]
+  },
   "CostEventAccepted": {
     "properties": [
       "cost_event_id",
@@ -351,6 +381,7 @@
       "advisory",
       "allowed",
       "available",
+      "budget",
       "credit_system",
       "credits_required",
       "entity_id",
@@ -373,6 +404,7 @@
     "properties": [
       "allowed",
       "available",
+      "budget",
       "credit_system",
       "credits_consumed",
       "credits_required",
@@ -699,6 +731,7 @@
   "PlatformCanResponse": {
     "properties": [
       "allowed",
+      "budget",
       "configuration",
       "economics",
       "feature_type",

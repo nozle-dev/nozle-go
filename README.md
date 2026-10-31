@@ -351,6 +351,22 @@ _ = result.CreditsReleased
 
 `GetCreditHold` and `ListCreditHolds(ctx, customerID, nozle.CreditHoldStatusHeld)` read holds. Errors come back as `*nozle.APIError` with `Code()` `hold_not_found` (404), `hold_already_resolved` (409: releasing a finalized hold, or finalizing a resolved hold with other usage) or `hold_ttl_invalid` (400).
 
+### Money budgets
+
+Spend limits (Core) cap what a customer's metered usage may cost per period. Needs Engine 2.31.0.
+
+```go
+res, err := client.Can(ctx, "customer-123", "agent_execution")
+if err != nil { return err }
+if !res.Allowed && res.Reason == nozle.RefusalReasonBudgetExceeded {
+    // res.Budget: Limit, Spent, Held, Remaining, Currency, PeriodEnd, Status, ...
+}
+
+list, err := client.ListBudgets(ctx, "customer-123", "sub-123") // "" for the customer's only subscription
+```
+
+`Can`, `CheckUsage` and `TrackUsage` answer `Allowed=false`, `Reason` `budget_exceeded` with `Budget` when a hard limit covering the Feature is used up; a soft limit never refuses. Compare `Reason` with the `RefusalReason...` constants; an unknown reason arrives as its plain string. A plain `Can` is check-then-call, so calls in flight can overrun a cap; for an exact cap take a hold: on a Feature billed in money `CreateCreditHold` returns a budget hold (`Kind` `nozle.HoldKindBudget`, `AmountHeld`, `Currency`) and refuses with `budget_exceeded` when the estimated spend does not fit. Where a failed response returns an error, a 402 `budget_exceeded` is a `*nozle.BudgetExceededError` (with `Budget` when sent) and a 429 `usage_limit_exceeded` a `*nozle.UsageLimitExceededError`; both unwrap to the `*nozle.APIError`, so `errors.As(err, &apiErr)` keeps working. Through the LLM proxy the provider SDK's own error carries the same `code`.
+
 The legacy wallet adapter `CheckAndDeduct` takes `CustomerID` and `Credits`; `Feature` is deprecated and ignored. It is separate from product credits and has no idempotency key. Avoid retrying it after an uncertain response. For exact-decimal product credits, use `CheckUsage` and `TrackUsage`.
 
 ## Feature Events, Cost Events, and entitlements

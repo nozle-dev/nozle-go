@@ -323,10 +323,10 @@ func (c *Client) requestOnce(ctx context.Context, op, method string, core bool, 
 				safe = string(redacted)
 			}
 		}
-		return &APIError{
+		return typedAPIError(&APIError{
 			StatusCode: resp.StatusCode, Method: method, Path: req.URL.Path, Operation: op, Body: safe, Details: details,
 			RequestID: resp.Header.Get("X-Request-Id"), RetryAfter: parseRetryAfter(resp.Header.Get("Retry-After")),
-		}
+		})
 	}
 	if out == nil || resp.StatusCode == 204 {
 		return nil

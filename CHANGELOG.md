@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.27.0] - 2026-10-31
+
+### Added
+
+- Money budgets (NLD-16), needs Engine 2.31.0. `ListBudgets(ctx, customerID, subscriptionID)` reads `GET /customers/{id}/budgets` (`subscriptionID` `""` uses the customer's only subscription) and returns `BudgetList{CustomerID, SubscriptionID, Budgets}`. `Budget` has `FeatureCode` (empty for the total limit), `Limit`, `Spent`, `Held`, `Remaining` (decimal strings in major units), `Currency`, `Period` (`billing_period`, `calendar_month`, `lifetime`), `PeriodStart`, `PeriodEnd` (empty for `lifetime`), `Mode` (`hard`, `soft`), `Status` (`ok`, `warning`, `exceeded`) and `AsOf`.
+- `CanResult.Budget` and `UsageResult.Budget`: `Can`, `CheckUsage` and `TrackUsage` answer `Allowed=false`, `Reason` `budget_exceeded` with the used-up limit. They still return the refusal, not an error.
+- `RefusalReason` (an alias of `string`) and the constants `RefusalReasonFeatureNotFound`, `RefusalReasonNoSubscription`, `RefusalReasonSubscriptionRequired`, `RefusalReasonNoEntitlement`, `RefusalReasonUsageLimitExceeded`, `RefusalReasonEconomicPolicyDenied`, `RefusalReasonCustomerPaymentOverdue`, `RefusalReasonInsufficientCredits` and `RefusalReasonBudgetExceeded`. `Reason` fields stay strings, so an unknown reason passes through.
+- `*BudgetExceededError` (402 `budget_exceeded`, with `Budget` when the response carries one) and `*UsageLimitExceededError` (429 `usage_limit_exceeded`), chosen by status and exact code wherever a failed response returns an error. Both embed and unwrap to the `*APIError`, so `errors.As(err, &apiErr)` keeps matching; code that type-asserts `err.(*nozle.APIError)` does not see these two.
+- Budget holds: on a Feature billed in money under a hard spend limit, `CreateCreditHold` reserves the call's estimated spend. `CreditHold` gains `Kind` (`HoldKindBudget`; empty for a credit hold), `AmountHeld` and `Currency`; `CreditHoldResult` gains `Budget`; `CreditHoldFinalizeResult` gains `Kind`, `Status`, `AmountHeld` and `Currency` (a budget hold's finalize answers the hold).
+- `testdata/openapi_schemas.json` gains `Budget` and the `budget` keys by hand until the docs spec has them.
+
 ## [0.26.0] - 2026-10-31
 
 ### Added
