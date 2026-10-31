@@ -25,7 +25,7 @@ const (
 // HoldKindBudget is CreditHold.Kind of a budget hold. A credit hold has an empty Kind.
 const HoldKindBudget = "budget"
 
-// Budget is one money budget (spend limit) and its standing in the current period (Engine 2.31.0). Amounts are
+// Budget is one money budget (spend limit) and its standing in the current period (Engine 2.34.0). Amounts are
 // decimal strings in major units of Currency.
 type Budget struct {
 	// FeatureCode is the Feature the limit covers; empty for the subscription's total limit.

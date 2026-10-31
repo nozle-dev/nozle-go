@@ -99,7 +99,7 @@ type CreditBalance struct {
 	CustomerID   string  `json:"customer_id"`
 	CreditSystem string  `json:"credit_system"`
 	Available    Decimal `json:"available"`
-	// Held is what open credit holds reserve; Available already excludes it. Engine 2.30.0.
+	// Held is what open credit holds reserve; Available already excludes it. Engine 2.33.0.
 	Held    Decimal        `json:"held"`
 	AsOf    string         `json:"as_of"`
 	Sources []CreditSource `json:"sources"`
@@ -183,7 +183,7 @@ type UsageResult struct {
 	ProjectedRemaining  Decimal          `json:"projected_remaining"`
 	Deductions          []UsageDeduction `json:"deductions"`
 	ProjectedDeductions []UsageDeduction `json:"projected_deductions"`
-	// Budget is the used-up hard spend limit, with Reason budget_exceeded (Engine 2.31.0); such a refusal carries
+	// Budget is the used-up hard spend limit, with Reason budget_exceeded (Engine 2.34.0); such a refusal carries
 	// only Allowed, Reason and Budget.
 	Budget *Budget `json:"budget"`
 }
@@ -222,7 +222,7 @@ const (
 	CodeHoldTTLInvalid      = "hold_ttl_invalid"      // 400
 )
 
-// CreditHold is a credit hold, or a budget hold when Kind is HoldKindBudget (Engine 2.31.0): on a Feature billed in
+// CreditHold is a credit hold, or a budget hold when Kind is HoldKindBudget (Engine 2.34.0): on a Feature billed in
 // money under a hard spend limit the hold reserves the call's estimated spend in AmountHeld and Currency, and the
 // credit fields are empty.
 type CreditHold struct {

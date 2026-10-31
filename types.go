@@ -23,7 +23,7 @@ type CanResult struct {
 	Economics     *CanEconomics     `json:"economics"`
 	Policy        json.RawMessage   `json:"policy"`
 	// Budget is the spend limit that refused the call (budget_exceeded), else the tightest one covering the
-	// Feature; nil without one (Engine 2.31.0).
+	// Feature; nil without one (Engine 2.34.0).
 	Budget *Budget `json:"budget"`
 }
 
