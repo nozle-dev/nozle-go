@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	nozle "github.com/nozle-dev/nozle-go"
 )
@@ -131,6 +132,29 @@ func TestTypedErrors_byStatusAndExactCode(t *testing.T) {
 		if _, ok := err.(*nozle.APIError); !ok {
 			t.Fatalf("%d %s: want a plain *APIError, got %#v", c.status, c.code, err)
 		}
+	}
+}
+
+func TestRefusals_areSentOnceAndReturnedTyped(t *testing.T) {
+	ctx := context.Background()
+	srv, got := answer(t, 429, `{"code":"usage_limit_exceeded"}`)
+	_, err := nozle.New("sk_test-key", nozle.WithBaseURL(srv.URL), nozle.WithMaxRetries(2), nozle.WithRetryDelay(time.Millisecond)).ListBudgets(ctx, "acme", "")
+	var limitErr *nozle.UsageLimitExceededError
+	if !errors.As(err, &limitErr) || len(*got) != 1 {
+		t.Fatalf("429 usage_limit_exceeded: err %#v after %d requests, want one", err, len(*got))
+	}
+
+	srv, got = answer(t, 402, `{"code":"budget_exceeded"}`)
+	_, err = nozle.New("sk_test-key", nozle.WithBaseURL(srv.URL), nozle.WithMaxRetries(2), nozle.WithRetryDelay(time.Millisecond)).ListBudgets(ctx, "acme", "")
+	var budgetErr *nozle.BudgetExceededError
+	if !errors.As(err, &budgetErr) || len(*got) != 1 {
+		t.Fatalf("402 budget_exceeded: err %#v after %d requests, want one", err, len(*got))
+	}
+
+	srv, got = answer(t, 429, `{"code":"rate_limited"}`)
+	_, err = nozle.New("sk_test-key", nozle.WithBaseURL(srv.URL), nozle.WithMaxRetries(2), nozle.WithRetryDelay(time.Millisecond)).ListBudgets(ctx, "acme", "")
+	if _, ok := err.(*nozle.APIError); !ok || len(*got) != 3 {
+		t.Fatalf("another 429: err %#v after %d requests, want three", err, len(*got))
 	}
 }
 

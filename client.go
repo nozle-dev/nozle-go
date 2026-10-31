@@ -231,8 +231,9 @@ var repeatableOps = map[string]bool{
 	"cost_intelligence.preview_shared_cost_allocation": true, "cost_intelligence.allocate_shared_cost": true,
 }
 
-// request sends one call. With WithMaxRetries set it retries network errors, timeouts, 429 and 5xx,
-// but only a call that is safe to repeat: a read, a call with an idempotency key, or a repeatable op.
+// request sends one call. With WithMaxRetries set it retries network errors, timeouts, 429 (except a
+// usage_limit_exceeded refusal) and 5xx, but only a call that is safe to repeat: a read, a call with an
+// idempotency key, or a repeatable op.
 func (c *Client) request(ctx context.Context, op, method string, core bool, path string, body, out any, key string) error {
 	retries := 0
 	if method == http.MethodGet || method == http.MethodHead || key != "" || repeatableOps[op] {
@@ -258,7 +259,11 @@ func (c *Client) request(ctx context.Context, op, method string, core bool, path
 func (c *Client) retryWait(err error, attempt int) (time.Duration, bool) {
 	var api *APIError
 	var transport *TransportError
+	var refusal *UsageLimitExceededError
 	switch {
+	case errors.As(err, &refusal):
+		// A 429 usage_limit_exceeded is a hard unit limit, not a rate limit: a retry cannot pass it.
+		return 0, false
 	case errors.As(err, &api) && (api.StatusCode == http.StatusTooManyRequests || api.StatusCode >= 500):
 		if api.RetryAfter > 0 {
 			return min(api.RetryAfter, 30*time.Second), true
