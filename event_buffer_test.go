@@ -8,6 +8,7 @@ import (
 	"log"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -182,6 +183,7 @@ func TestEventBufferFailedIsRequeuedThenReported(t *testing.T) {
 	ctx := context.Background()
 	id, _ := buf.TrackWithID(event(0))
 	buf.Track(event(1))
+	start := time.Now()
 	for flush := 1; flush <= 2; flush++ {
 		buf.Flush(ctx)
 		if buf.Len() != 2 || len(r.all()) != 0 {
@@ -189,6 +191,9 @@ func TestEventBufferFailedIsRequeuedThenReported(t *testing.T) {
 		}
 	}
 	buf.Flush(ctx)
+	if took := time.Since(start); took > 900*time.Millisecond {
+		t.Fatalf("explicit flushes waited for the backoff: %v", took)
+	}
 	requests := b.requestsSoFar()
 	if len(requests) != 3 {
 		t.Fatalf("%d requests, want 3", len(requests))
@@ -365,5 +370,80 @@ func TestEventBufferRejectsOutOfRangeOptions(t *testing.T) {
 			}()
 			nozle.New("sk_test").NewEventBuffer(opts)
 		}()
+	}
+}
+
+func TestEventBufferBacksOffThroughAnOutage(t *testing.T) {
+	var down atomic.Bool
+	down.Store(true)
+	b := newBatchServer(t, func(call int, events []sentEvent) (int, string) {
+		if down.Load() {
+			return 503, `{}`
+		}
+		return 0, ""
+	})
+	var r reported
+	buf := b.client(nozle.WithMaxRetries(0)).NewEventBuffer(nozle.EventBufferOptions{FlushInterval: 20 * time.Millisecond, OnError: r.onError})
+	defer buf.Close(context.Background())
+	var ids []string
+	for i := 0; i < 3; i++ {
+		id, _ := buf.TrackWithID(event(i))
+		ids = append(ids, id)
+	}
+	waitFor(t, "the first flush", func() bool { return len(b.requestsSoFar()) == 1 })
+	failedAt := time.Now()
+	// 15 flush intervals of outage: without the 1 s backoff each tick would spend an attempt.
+	time.Sleep(300 * time.Millisecond)
+	if n := len(b.requestsSoFar()); n != 1 || buf.Len() != 3 || len(r.all()) != 0 {
+		t.Fatalf("during the backoff: requests=%d len=%d reported=%+v", n, buf.Len(), r.all())
+	}
+	down.Store(false)
+	waitFor(t, "the flush after the backoff", func() bool { return len(b.requestsSoFar()) == 2 })
+	if waited := time.Since(failedAt); waited < 900*time.Millisecond {
+		t.Fatalf("resent after %v, before the 1 s backoff", waited)
+	}
+	sent := b.requestsSoFar()[1]
+	if len(sent) != 3 || sent[0].TransactionID != ids[0] || sent[2].TransactionID != ids[2] {
+		t.Fatalf("resent %+v", sent)
+	}
+	waitFor(t, "an empty buffer", func() bool { return buf.Len() == 0 })
+	if len(r.all()) != 0 {
+		t.Fatalf("reported %+v", r.all())
+	}
+}
+
+func TestEventBufferSizeTriggerWaitsForTheBackoff(t *testing.T) {
+	var down atomic.Bool
+	down.Store(true)
+	b := newBatchServer(t, func(call int, events []sentEvent) (int, string) {
+		if down.Load() {
+			return 503, `{}`
+		}
+		return 0, ""
+	})
+	buf := b.client(nozle.WithMaxRetries(0)).NewEventBuffer(nozle.EventBufferOptions{MaxBatchSize: 2, FlushInterval: -1})
+	defer buf.Close(context.Background())
+	buf.Track(event(0))
+	buf.Track(event(1))
+	waitFor(t, "the size flush", func() bool { return len(b.requestsSoFar()) == 1 })
+	failedAt := time.Now()
+	buf.Track(event(2))
+	buf.Track(event(3))
+	time.Sleep(200 * time.Millisecond)
+	if n := len(b.requestsSoFar()); n != 1 || buf.Len() != 4 {
+		t.Fatalf("size trigger during the backoff: requests=%d len=%d", n, buf.Len())
+	}
+	down.Store(false)
+	// The timer is off: the end of the backoff alone restarts the size trigger.
+	waitFor(t, "the size flush after the backoff", func() bool { return len(b.requestsSoFar()) > 1 })
+	if waited := time.Since(failedAt); waited < 900*time.Millisecond {
+		t.Fatalf("resent after %v, before the 1 s backoff", waited)
+	}
+	// One flush of 4 events in requests of MaxBatchSize 2.
+	waitFor(t, "an empty buffer", func() bool { return buf.Len() == 0 && len(b.requestsSoFar()) == 3 })
+	for _, sent := range b.requestsSoFar()[1:] {
+		if len(sent) != 2 {
+			t.Fatalf("request of %d events, want 2", len(sent))
+		}
 	}
 }

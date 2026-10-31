@@ -14,6 +14,9 @@ const (
 	defaultBufferFlushInterval = 5 * time.Second
 	defaultBufferQueueSize     = 10_000
 	defaultBufferMaxAttempts   = 3
+	// After a flush with failed events, automatic flushes pause 1 s, doubling per such flush up to 60 s.
+	bufferBackoffBase = time.Second
+	bufferBackoffCap  = time.Minute
 )
 
 // ErrBufferFull is returned by EventBuffer.Track when the queue holds MaxQueueSize events. The event is not queued.
@@ -33,6 +36,8 @@ type EventBufferOptions struct {
 	// new event, reports buffer_full and returns ErrBufferFull.
 	MaxQueueSize int
 	// MaxAttempts is how many flushes an event may fail before it is dropped and reported as failed (default 3).
+	// After a flush with a failed event, size and timer flushes pause 1 s, doubling after each such flush up to
+	// 60 s, and resume at once after a flush without failures. Flush and Close do not wait for the pause.
 	MaxAttempts int
 	// OnError receives every event the buffer does not deliver, with an *EventBufferError whose Code is
 	// "buffer_full", "rejected", "failed" or "closed". Without it the buffer logs through the standard log package.
@@ -90,6 +95,8 @@ type EventBuffer struct {
 	started     uint64
 	finished    uint64
 	flushDone   chan struct{} // closed and replaced when a flush finishes
+	backoff     time.Duration // the pause after the last flush; 0 when it had no failed event
+	pausedUntil time.Time     // size and timer triggers wait until then; Flush and Close do not
 }
 
 type bufferedEvent struct {
@@ -259,6 +266,9 @@ func (b *EventBuffer) run() {
 		ticker = time.NewTicker(b.interval)
 		defer ticker.Stop()
 	}
+	resume := time.NewTimer(time.Hour)
+	resume.Stop()
+	defer resume.Stop()
 	for {
 		timer := false
 		select {
@@ -267,9 +277,13 @@ func (b *EventBuffer) run() {
 		case <-b.wake:
 		case <-ticker.C:
 			timer = true
+		case <-resume.C:
+			timer = b.interval > 0 // the backoff ended: flush what waited, as a tick would
 		}
 		for b.due(timer) {
-			b.flush()
+			if pause := b.flush(); pause > 0 {
+				resume.Reset(pause)
+			}
 			timer = false
 			if b.sendCtx.Err() != nil {
 				return
@@ -278,15 +292,21 @@ func (b *EventBuffer) run() {
 	}
 }
 
-// due reports whether a flush should start: the timer fired, a full batch is waiting or a Flush waits.
+// due reports whether a flush should start: a Flush waits, or, outside a backoff, the timer fired or a full batch
+// is waiting.
 func (b *EventBuffer) due(timer bool) bool {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	return len(b.queue) > 0 && ((timer && !b.closed) || len(b.queue) >= b.batchSize || b.wanted > b.started)
+	if len(b.queue) == 0 {
+		return false
+	}
+	automatic := (timer && !b.closed) || len(b.queue) >= b.batchSize
+	return b.wanted > b.started || (automatic && !time.Now().Before(b.pausedUntil))
 }
 
 // flush sends everything waiting in one TrackBatch call, requeues failed events at the front and reports the rest.
-func (b *EventBuffer) flush() {
+// It returns the backoff that pauses automatic flushes, or 0 when no event failed.
+func (b *EventBuffer) flush() time.Duration {
 	b.mu.Lock()
 	b.started++
 	// TrackBatch refuses a repeated transaction ID in one call: a repeat waits for the next flush.
@@ -339,12 +359,19 @@ func (b *EventBuffer) flush() {
 		b.onError(&EventBufferError{Code: "failed", Err: lastErr}, gaveUp)
 	}
 	b.mu.Lock()
+	defer b.mu.Unlock()
 	b.queue = append(retry, b.queue...)
 	b.sending = nil
 	b.finished++
 	close(b.flushDone)
 	b.flushDone = make(chan struct{})
-	b.mu.Unlock()
+	if len(retry) == 0 && len(gaveUp) == 0 {
+		b.backoff, b.pausedUntil = 0, time.Time{}
+	} else {
+		b.backoff = min(max(2*b.backoff, bufferBackoffBase), bufferBackoffCap)
+		b.pausedUntil = time.Now().Add(b.backoff)
+	}
+	return b.backoff
 }
 
 // dropQueued reports the events left when the goroutine stops after Close's context ended.
