@@ -99,7 +99,7 @@ type CreditBalance struct {
 	CustomerID   string  `json:"customer_id"`
 	CreditSystem string  `json:"credit_system"`
 	Available    Decimal `json:"available"`
-	// Held is what open credit holds reserve; Available already excludes it. Engine 2.30.0.
+	// Held is what open credit holds reserve; Available already excludes it. Engine 2.33.0.
 	Held    Decimal        `json:"held"`
 	AsOf    string         `json:"as_of"`
 	Sources []CreditSource `json:"sources"`

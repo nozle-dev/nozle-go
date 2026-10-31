@@ -332,7 +332,7 @@ if err != nil { return err }
 if !tracked.Allowed { return fmt.Errorf("usage denied: %s", tracked.Reason) }
 ```
 
-When the cost is known only after the work (an LLM call, a long job), hold the credits first and finalize with the actual usage. `CreateCreditHold` takes the `TrackUsage` fields plus `TTLSeconds` (default 900, at most 86400) and a required idempotency key. Other callers' checks and tracks cannot spend held credits, and balances report them as `Held`. `FinalizeCreditHold` spends the actual usage at the hold's rate and releases the rest; usage above the hold passes only when free credit covers the difference. `ReleaseCreditHold` frees a hold you no longer need. An unfinalized hold expires at its TTL. Needs Engine 2.30.0.
+When the cost is known only after the work (an LLM call, a long job), hold the credits first and finalize with the actual usage. `CreateCreditHold` takes the `TrackUsage` fields plus `TTLSeconds` (default 900, at most 86400) and a required idempotency key. Other callers' checks and tracks cannot spend held credits, and balances report them as `Held`. `FinalizeCreditHold` spends the actual usage at the hold's rate and releases the rest; usage above the hold passes only when free credit covers the difference. `ReleaseCreditHold` frees a hold you no longer need. An unfinalized hold expires at its TTL. Needs Engine 2.33.0.
 
 ```go
 hold, err := client.CreateCreditHold(ctx, nozle.CreditHoldParams{
