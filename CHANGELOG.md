@@ -6,6 +6,37 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.27.0] - 2026-11-01
+
+v0.25.0 (event buffer) and v0.26.0 (credit holds) below were not tagged separately: their changes ship in v0.27.0.
+
+### Added
+
+- Money budgets (NLD-16), needs Engine 2.34.0. `ListBudgets(ctx, customerID, subscriptionID)` reads `GET /customers/{id}/budgets` (`subscriptionID` `""` uses the customer's only subscription) and returns `BudgetList{CustomerID, SubscriptionID, Budgets}`. `Budget` has `FeatureCode` (empty for the total limit), `Limit`, `Spent`, `Held`, `Remaining` (decimal strings in major units), `Currency`, `Period` (`billing_period`, `calendar_month`, `lifetime`), `PeriodStart`, `PeriodEnd` (empty for `lifetime`), `Mode` (`hard`, `soft`), `Status` (`ok`, `warning`, `exceeded`) and `AsOf`.
+- `CanResult.Budget` and `UsageResult.Budget`: `Can`, `CheckUsage` and `TrackUsage` answer `Allowed=false`, `Reason` `budget_exceeded` with the used-up limit. They still return the refusal, not an error.
+- `RefusalReason` (an alias of `string`) and the constants `RefusalReasonFeatureNotFound`, `RefusalReasonNoSubscription`, `RefusalReasonSubscriptionRequired`, `RefusalReasonNoEntitlement`, `RefusalReasonUsageLimitExceeded`, `RefusalReasonEconomicPolicyDenied`, `RefusalReasonCustomerPaymentOverdue`, `RefusalReasonInsufficientCredits` and `RefusalReasonBudgetExceeded`. `Reason` fields stay strings, so an unknown reason passes through.
+- `*BudgetExceededError` (402 `budget_exceeded`, with `Budget` when the response carries one) and `*UsageLimitExceededError` (429 `usage_limit_exceeded`), chosen by status and exact code wherever a failed response returns an error. Both embed and unwrap to the `*APIError`, so `errors.As(err, &apiErr)` keeps matching; code that type-asserts `err.(*nozle.APIError)` does not see these two.
+- Budget holds: on a Feature billed in money under a hard spend limit, `CreateCreditHold` reserves the call's estimated spend. `CreditHold` gains `Kind` (`HoldKindBudget`; empty for a credit hold), `AmountHeld` and `Currency`; `CreditHoldResult` gains `Budget`; `CreditHoldFinalizeResult` gains `Kind`, `Status`, `AmountHeld` and `Currency` (a budget hold's finalize answers the hold).
+- A 429 whose code is exactly `usage_limit_exceeded` is a refusal, not a rate limit, so `WithMaxRetries` no longer retries it; other 429s still retry and honor `Retry-After`. A 402 (including `budget_exceeded`) was never retried.
+- `testdata/openapi_schemas.json` gains `Budget` and the `budget` keys by hand until the docs spec has them.
+
+## [0.26.0] - 2026-10-31
+
+### Added
+
+- Credit balance holds (NLD-9), needs Engine 2.34.0. `CreateCreditHold(ctx, CreditHoldParams, idempotencyKey)` reserves the credits a call would cost (`POST /usage/holds`) without spending them: the `TrackUsage` fields plus `TTLSeconds` (0 uses the Engine default of 900; at most 86400). A denial is `Allowed=false` with `Reason`, not an error. `FinalizeCreditHold(ctx, holdID, FinalizeCreditHoldParams)` spends the actual usage at the hold's rate and releases the rest; an amount of 0 releases it, and after expiry it runs as a plain track with `HoldExpired=true`. `ReleaseCreditHold(ctx, holdID)` is idempotent. `GetCreditHold(ctx, holdID)` and `ListCreditHolds(ctx, customerID, status)` read holds (newest 100; status `""` lists all; a status other than the five is refused before any request). Types `CreditHold`, `CreditHoldResult`, `CreditHoldFinalizeResult`, `CreditHoldList`, the `CreditHoldStatus...` constants and the error codes `CodeHoldNotFound` (404), `CodeHoldAlreadyResolved` (409) and `CodeHoldTTLInvalid` (400). Like `TrackUsage`, a missing `Timestamp` is filled in once per idempotency key (create) or hold ID (finalize) and reused, so a repeat replays the first answer. Create retries with its key under `WithMaxRetries`; finalize and release are retried too, because Engine replays a finalize with the same usage and a release is idempotent.
+- `Held` on `CreditBalance` and `CreditSource`, and `EntityHeld`, `SharedHeld` and `Held` on `EntityCreditBalance`: credits that open holds reserve. `Available` already excludes them.
+
+## [0.25.0] - 2026-10-31
+
+### Added
+
+- `Client.NewEventBuffer(nozle.EventBufferOptions{...})` queues events in memory and sends them with `TrackBatch` from one background goroutine: when `MaxBatchSize` events are waiting (default 500, 1 to 5000), every `FlushInterval` (default 5 s; negative disables the timer), and on `Flush(ctx)` and `Close(ctx)`. One flush runs at a time. `Track(event) error` and `TrackWithID(event) (string, error)` return at once and set the transaction ID (generated UUID version 7 when empty), so every resend records the event once. `Len()` is the number of events waiting. The queue holds at most `MaxQueueSize` events (default 10 000, counting a request in flight); when it is full `Track` drops the new event and returns `ErrBufferFull`. A failed event goes back to the front of the queue and is dropped after `MaxAttempts` flushes (default 3). After a flush with a failed event, size and timer flushes pause 1 s, doubling per such flush up to 60 s, and a flush without failures ends the pause; events keep queueing, and `Flush`/`Close` ignore the pause. Every undelivered event goes to `OnError(err, events)` with an `*EventBufferError` whose `Code` is `buffer_full`, `rejected` (not retried; `Errors` has Engine's field codes), `failed` or `closed` (`Track` after `Close` returns `ErrBufferClosed`); without `OnError` the buffer logs through the standard `log` package. `Close(ctx)` stops the timer, flushes until the queue is empty and refuses later events; when `ctx` ends first it cancels the request in flight and reports what is left as `failed`. Go has no exit hook: call `defer buf.Close(ctx)`, and in serverless code flush before returning. Same behaviour as the Node and Python SDKs (NLD-7).
+
+### Known limitations
+
+- The OpenAI and Anthropic usage capture does not use the buffer yet. The queue is not persisted.
+
 ## [0.24.0] - 2026-10-31
 
 ### Added

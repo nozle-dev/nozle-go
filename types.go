@@ -10,9 +10,10 @@ type PingResult struct {
 
 // CanResult is the response from the /api/v1/can endpoint.
 type CanResult struct {
-	Allowed bool   `json:"allowed"`
-	Reason  string `json:"reason,omitempty"`
-	Used    int    `json:"used"`
+	Allowed bool `json:"allowed"`
+	// Reason is a RefusalReason when Allowed is false; budget_exceeded comes with Budget.
+	Reason RefusalReason `json:"reason,omitempty"`
+	Used   int           `json:"used"`
 	// Limit and Remaining are nil for an unlimited feature (the API sends null), never 0: a zero allowance means none left.
 	Limit         *int              `json:"limit"`
 	Remaining     *int              `json:"remaining"`
@@ -21,6 +22,9 @@ type CanResult struct {
 	Overage       bool              `json:"overage"`
 	Economics     *CanEconomics     `json:"economics"`
 	Policy        json.RawMessage   `json:"policy"`
+	// Budget is the spend limit that refused the call (budget_exceeded), else the tightest one covering the
+	// Feature; nil without one (Engine 2.34.0).
+	Budget *Budget `json:"budget"`
 }
 
 // Plan is a billing plan returned by the /api/v1/plans endpoint.

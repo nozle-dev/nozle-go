@@ -332,6 +332,41 @@ if err != nil { return err }
 if !tracked.Allowed { return fmt.Errorf("usage denied: %s", tracked.Reason) }
 ```
 
+When the cost is known only after the work (an LLM call, a long job), hold the credits first and finalize with the actual usage. `CreateCreditHold` takes the `TrackUsage` fields plus `TTLSeconds` (default 900, at most 86400) and a required idempotency key. Other callers' checks and tracks cannot spend held credits, and balances report them as `Held`. `FinalizeCreditHold` spends the actual usage at the hold's rate and releases the rest; usage above the hold passes only when free credit covers the difference. `ReleaseCreditHold` frees a hold you no longer need. An unfinalized hold expires at its TTL. Needs Engine 2.34.0.
+
+```go
+hold, err := client.CreateCreditHold(ctx, nozle.CreditHoldParams{
+    CustomerID: "customer-123", FeatureCode: "agent_execution",
+    Properties: map[string]any{"tokens": 4000}, TTLSeconds: 300,
+}, "execution-123")
+if err != nil { return err }
+if !hold.Allowed { return fmt.Errorf("usage denied: %s", hold.Reason) }
+
+result, err := client.FinalizeCreditHold(ctx, hold.HoldID, nozle.FinalizeCreditHoldParams{
+    Properties: map[string]any{"tokens": 2750},
+})
+if err != nil { return err }
+_ = result.CreditsReleased
+```
+
+`GetCreditHold` and `ListCreditHolds(ctx, customerID, nozle.CreditHoldStatusHeld)` read holds. Errors come back as `*nozle.APIError` with `Code()` `hold_not_found` (404), `hold_already_resolved` (409: releasing a finalized hold, or finalizing a resolved hold with other usage) or `hold_ttl_invalid` (400).
+
+### Money budgets
+
+Spend limits (Core) cap what a customer's metered usage may cost per period. Needs Engine 2.34.0.
+
+```go
+res, err := client.Can(ctx, "customer-123", "agent_execution")
+if err != nil { return err }
+if !res.Allowed && res.Reason == nozle.RefusalReasonBudgetExceeded {
+    // res.Budget: Limit, Spent, Held, Remaining, Currency, PeriodEnd, Status, ...
+}
+
+list, err := client.ListBudgets(ctx, "customer-123", "sub-123") // "" for the customer's only subscription
+```
+
+`Can`, `CheckUsage` and `TrackUsage` answer `Allowed=false`, `Reason` `budget_exceeded` with `Budget` when a hard limit covering the Feature is used up; a soft limit never refuses. Compare `Reason` with the `RefusalReason...` constants; an unknown reason arrives as its plain string. A plain `Can` is check-then-call, so calls in flight can overrun a cap; for an exact cap take a hold: on a Feature billed in money `CreateCreditHold` returns a budget hold (`Kind` `nozle.HoldKindBudget`, `AmountHeld`, `Currency`) and refuses with `budget_exceeded` when the estimated spend does not fit. Where a failed response returns an error, a 402 `budget_exceeded` is a `*nozle.BudgetExceededError` (with `Budget` when sent) and a 429 `usage_limit_exceeded` a `*nozle.UsageLimitExceededError`; both unwrap to the `*nozle.APIError`, so `errors.As(err, &apiErr)` keeps working. Through the LLM proxy the provider SDK's own error carries the same `code`.
+
 The legacy wallet adapter `CheckAndDeduct` takes `CustomerID` and `Credits`; `Feature` is deprecated and ignored. It is separate from product credits and has no idempotency key. Avoid retrying it after an uncertain response. For exact-decimal product credits, use `CheckUsage` and `TrackUsage`.
 
 ## Feature Events, Cost Events, and entitlements
@@ -389,7 +424,38 @@ The contract:
 - **Subscription.** As for `Track`, pass `SubscriptionID` or let Engine resolve the customer's one active subscription. A customer with several or none is a 422 for that event, so it comes back rejected.
 - **Invalid arguments** (`*BatchEventError`, which wraps a `*ValidationError` and has the event's `Index`, or -1 for an option; returned before any request): a missing `CustomerID` or `Event`, a bad `Timestamp`, a repeated `TransactionID`, or an out-of-range chunk size or concurrency.
 
-`TrackBatch` is not `TrackUsage`: it records events like `Track` does and does not deduct credits, apply a money-billed feature's checks or return a balance. An empty list sends nothing. There is no client-side buffer yet; to batch events as they happen, collect them and call `TrackBatch`.
+`TrackBatch` is not `TrackUsage`: it records events like `Track` does and does not deduct credits, apply a money-billed feature's checks or return a balance. An empty list sends nothing. To batch events as they happen, use an event buffer.
+
+### Event buffer
+
+`NewEventBuffer` queues events in memory and sends them with `TrackBatch` from one background goroutine. `Track` returns at once, with no network call.
+
+```go
+buf := client.NewEventBuffer(nozle.EventBufferOptions{
+    // MaxBatchSize: 500, FlushInterval: 5 * time.Second, MaxQueueSize: 10_000, MaxAttempts: 3
+    OnError: func(err error, events []nozle.TrackParams) {
+        var e *nozle.EventBufferError
+        if errors.As(err, &e) {
+            log.Println(e.Code, len(events), err) // buffer_full, rejected, failed or closed
+        }
+    },
+})
+defer buf.Close(ctx) // Go has no exit hook: without Close, events still queued are lost
+
+id, err := buf.TrackWithID(nozle.TrackParams{CustomerID: "cust_123", Event: "api_call", Metadata: map[string]any{"tokens": 100}})
+if errors.Is(err, nozle.ErrBufferFull) {
+    // the queue is full: this event was dropped and reported to OnError
+}
+```
+
+- **When it sends.** A flush starts when `MaxBatchSize` events are waiting (default 500, 1 to 5000), every `FlushInterval` (default 5 s; a negative value disables the timer), and on `Flush(ctx)` and `Close(ctx)`. One flush runs at a time; a trigger during a flush waits for it. A flush sends everything waiting in one `TrackBatch` call, in requests of at most `MaxBatchSize` events.
+- **Idempotency.** `Track` sets the transaction ID (yours, or a generated UUID version 7, which `TrackWithID` returns) when the event is queued. Every retry and resend carries it, so Engine records the event once. An ID tracked twice waits for the next request, because `TrackBatch` refuses a repeated ID in one call.
+- **Bounded memory.** At most `MaxQueueSize` events are held (default 10 000), waiting or in a request in flight. When the queue is full, `Track` drops the new event, reports `buffer_full` and returns `ErrBufferFull`. `Len()` is the number of events waiting.
+- **Never silent.** Every event that is not delivered goes to `OnError` with an `*EventBufferError` whose `Code` is `buffer_full`, `rejected` (Engine refused it; `Errors` has the field codes; not retried), `failed` (its requests failed `MaxAttempts` flushes, default 3; `Err` is the last error) or `closed` (`Track` after `Close`, which returns `ErrBufferClosed`). A failed event goes back to the front of the queue for the next flush, with the same transaction ID. Without `OnError` the buffer logs through the standard `log` package. `Track` returns a `*ValidationError` for an event `TrackBatch` would refuse (no `CustomerID` or `Event`, a bad `Timestamp`).
+- **Backoff.** After a flush with a failed event, size and timer flushes pause for 1 s, doubling after each such flush up to 60 s, so the buffer rides out an outage instead of spending every attempt in seconds. Events keep queueing during the pause, up to `MaxQueueSize`. A flush without failures ends the pause. `Flush` and `Close` do not wait for it.
+- **Flush and Close.** `Flush(ctx)` sends everything waiting now and returns when done. `Close(ctx)` stops the timer, flushes until every event is delivered or reported (a failed event is retried up to `MaxAttempts` flushes) and refuses later `Track` calls. When `ctx` ends first, `Close` cancels the request in flight, reports the remaining events as `failed` with the context error and returns `ctx.Err()`.
+- **Serverless.** A function may be frozen or stopped as soon as it returns. Call `buf.Flush(ctx)` (or `buf.Close(ctx)`) before returning from each invocation.
+- The OpenAI and Anthropic usage capture does not go through the buffer yet. The queue is in memory only.
 
 ## OpenAI and Anthropic usage capture
 

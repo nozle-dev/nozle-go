@@ -29,6 +29,7 @@ func TestResponseStructsMatchTheOpenAPISchemas(t *testing.T) {
 	}{
 		{UsageResult{}, []string{"CreditsUsageCheckResponse", "CreditsUsageTrackResponse"}},
 		{CanResult{}, []string{"PlatformCanResponse"}},
+		{Budget{}, []string{"Budget"}},
 		{PingResult{}, []string{"PlatformPingResponse"}},
 		{CostEventResult{}, []string{"CostEventAccepted"}},
 		{CreditBalance{}, []string{"CreditsCustomerBalance"}},
