@@ -332,6 +332,25 @@ if err != nil { return err }
 if !tracked.Allowed { return fmt.Errorf("usage denied: %s", tracked.Reason) }
 ```
 
+When the cost is known only after the work (an LLM call, a long job), hold the credits first and finalize with the actual usage. `CreateCreditHold` takes the `TrackUsage` fields plus `TTLSeconds` (default 900, at most 86400) and a required idempotency key. Other callers' checks and tracks cannot spend held credits, and balances report them as `Held`. `FinalizeCreditHold` spends the actual usage at the hold's rate and releases the rest; usage above the hold passes only when free credit covers the difference. `ReleaseCreditHold` frees a hold you no longer need. An unfinalized hold expires at its TTL. Needs Engine 2.30.0.
+
+```go
+hold, err := client.CreateCreditHold(ctx, nozle.CreditHoldParams{
+    CustomerID: "customer-123", FeatureCode: "agent_execution",
+    Properties: map[string]any{"tokens": 4000}, TTLSeconds: 300,
+}, "execution-123")
+if err != nil { return err }
+if !hold.Allowed { return fmt.Errorf("usage denied: %s", hold.Reason) }
+
+result, err := client.FinalizeCreditHold(ctx, hold.HoldID, nozle.FinalizeCreditHoldParams{
+    Properties: map[string]any{"tokens": 2750},
+})
+if err != nil { return err }
+_ = result.CreditsReleased
+```
+
+`GetCreditHold` and `ListCreditHolds(ctx, customerID, nozle.CreditHoldStatusHeld)` read holds. Errors come back as `*nozle.APIError` with `Code()` `hold_not_found` (404), `hold_already_resolved` (409: releasing a finalized hold, or finalizing a resolved hold with other usage) or `hold_ttl_invalid` (400).
+
 The legacy wallet adapter `CheckAndDeduct` takes `CustomerID` and `Credits`; `Feature` is deprecated and ignored. It is separate from product credits and has no idempotency key. Avoid retrying it after an uncertain response. For exact-decimal product credits, use `CheckUsage` and `TrackUsage`.
 
 ## Feature Events, Cost Events, and entitlements

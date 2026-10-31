@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.26.0] - 2026-10-31
+
+### Added
+
+- Credit balance holds (NLD-9), needs Engine 2.30.0. `CreateCreditHold(ctx, CreditHoldParams, idempotencyKey)` reserves the credits a call would cost (`POST /usage/holds`) without spending them: the `TrackUsage` fields plus `TTLSeconds` (0 uses the Engine default of 900; at most 86400). A denial is `Allowed=false` with `Reason`, not an error. `FinalizeCreditHold(ctx, holdID, FinalizeCreditHoldParams)` spends the actual usage at the hold's rate and releases the rest; an amount of 0 releases it, and after expiry it runs as a plain track with `HoldExpired=true`. `ReleaseCreditHold(ctx, holdID)` is idempotent. `GetCreditHold(ctx, holdID)` and `ListCreditHolds(ctx, customerID, status)` read holds (newest 100; status `""` lists all; a status other than the five is refused before any request). Types `CreditHold`, `CreditHoldResult`, `CreditHoldFinalizeResult`, `CreditHoldList`, the `CreditHoldStatus...` constants and the error codes `CodeHoldNotFound` (404), `CodeHoldAlreadyResolved` (409) and `CodeHoldTTLInvalid` (400). Like `TrackUsage`, a missing `Timestamp` is filled in once per idempotency key (create) or hold ID (finalize) and reused, so a repeat replays the first answer. Create retries with its key under `WithMaxRetries`; finalize and release are retried too, because Engine replays a finalize with the same usage and a release is idempotent.
+- `Held` on `CreditBalance` and `CreditSource`, and `EntityHeld`, `SharedHeld` and `Held` on `EntityCreditBalance`: credits that open holds reserve. `Available` already excludes them.
+
 ## [0.25.0] - 2026-10-31
 
 ### Added

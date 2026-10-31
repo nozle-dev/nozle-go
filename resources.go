@@ -329,3 +329,93 @@ func (c *Client) TrackCostEvent(ctx context.Context, p CostEventParams) (CostEve
 	}
 	return out, err
 }
+
+// CreateCreditHold reserves the credits that usage would cost, without spending them, until it is finalized,
+// released or expires. A denial is Allowed=false, not an error. The idempotency key is required; without
+// Timestamp the client reuses the one it filled in for the same key, so a retry replays the first answer.
+func (c *Client) CreateCreditHold(ctx context.Context, p CreditHoldParams, key string) (CreditHoldResult, error) {
+	var out CreditHoldResult
+	if err := validateSecret(c, "usage.create_hold"); err != nil {
+		return out, err
+	}
+	if err := idem("usage.create_hold", key); err != nil {
+		return out, err
+	}
+	if p.TTLSeconds < 0 || p.TTLSeconds > 86400 {
+		return out, &ValidationError{"usage.create_hold", "ttl seconds must be 1-86400, or 0 for the Engine default"}
+	}
+	if p.Timestamp == "" {
+		p.Timestamp = c.usageTimestamps.get("hold:" + key)
+	}
+	b := usageBody(UsageParams{
+		CustomerID: p.CustomerID, EntityID: p.EntityID, FeatureCode: p.FeatureCode,
+		CreditSystemCode: p.CreditSystemCode, Properties: p.Properties, Timestamp: p.Timestamp,
+	}, false)
+	if p.TTLSeconds > 0 {
+		b["ttl_seconds"] = p.TTLSeconds
+	}
+	err := c.request(ctx, "usage.create_hold", "POST", false, "/api/v1/usage/holds", b, &out, key)
+	return out, err
+}
+
+func holdPath(id string) string { return "/api/v1/usage/holds/" + segment(id) }
+
+// FinalizeCreditHold spends the actual usage of a held call at the hold's rate and releases the rest.
+// Without Timestamp the client reuses the one it filled in for the same hold, so a repeat replays the result.
+func (c *Client) FinalizeCreditHold(ctx context.Context, holdID string, p FinalizeCreditHoldParams) (CreditHoldFinalizeResult, error) {
+	var out CreditHoldFinalizeResult
+	if err := validateSecret(c, "usage.finalize_hold"); err != nil {
+		return out, err
+	}
+	if err := required("usage.finalize_hold", "hold id", holdID); err != nil {
+		return out, err
+	}
+	props := p.Properties
+	if props == nil {
+		props = map[string]any{}
+	}
+	if p.Timestamp == "" {
+		p.Timestamp = c.usageTimestamps.get("finalize:" + holdID)
+	}
+	body := map[string]any{"properties": props, "timestamp": p.Timestamp}
+	err := c.request(ctx, "usage.finalize_hold", "POST", false, holdPath(holdID)+"/finalize", body, &out, "")
+	return out, err
+}
+
+// ReleaseCreditHold ends an open hold without spending. It is idempotent; a finalized hold answers 409
+// hold_already_resolved.
+func (c *Client) ReleaseCreditHold(ctx context.Context, holdID string) (CreditHold, error) {
+	var out CreditHold
+	if err := validateSecret(c, "usage.release_hold"); err != nil {
+		return out, err
+	}
+	if err := required("usage.release_hold", "hold id", holdID); err != nil {
+		return out, err
+	}
+	err := c.request(ctx, "usage.release_hold", "POST", false, holdPath(holdID)+"/release", nil, &out, "")
+	return out, err
+}
+func (c *Client) GetCreditHold(ctx context.Context, holdID string) (CreditHold, error) {
+	var out CreditHold
+	if err := required("usage.get_hold", "hold id", holdID); err != nil {
+		return out, err
+	}
+	err := c.request(ctx, "usage.get_hold", "GET", false, holdPath(holdID), nil, &out, "")
+	return out, err
+}
+
+// ListCreditHolds returns the customer's newest holds (at most 100); status "" lists every status.
+func (c *Client) ListCreditHolds(ctx context.Context, customer, status string) (CreditHoldList, error) {
+	var out CreditHoldList
+	switch status {
+	case "", CreditHoldStatusHeld, CreditHoldStatusDenied, CreditHoldStatusFinalized, CreditHoldStatusReleased, CreditHoldStatusExpired:
+	default:
+		return out, &ValidationError{"credits.list_holds", "status must be held, denied, finalized, released or expired"}
+	}
+	q := url.Values{}
+	if status != "" {
+		q.Set("status", status)
+	}
+	err := c.request(ctx, "credits.list_holds", "GET", false, query(customerPath(customer)+"/credit-holds", q), nil, &out, "")
+	return out, err
+}

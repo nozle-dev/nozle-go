@@ -221,11 +221,13 @@ func (c *Client) endpoint(core bool) string {
 
 // requestOps that are safe to repeat although they carry no Idempotency-Key: events and cost events
 // are idempotent by their own id, a customer upsert converges, checks, previews and margin simulations
-// only read, and a shared-cost allocation of the same period returns its first run.
+// only read, a shared-cost allocation of the same period returns its first run, a repeated hold finalize with
+// the same usage replays its result, and a hold release is idempotent.
 var repeatableOps = map[string]bool{
 	"track": true, "meter": true, "track_batch": true, "cost_events.track": true, "customers.upsert": true,
 	"usage.check": true, "preview_subscription_transition": true, "preview_subscription_change": true,
 	"invoice_download_url": true, "preview_credit_note": true, "margin.simulate": true,
+	"usage.finalize_hold": true, "usage.release_hold": true,
 	"cost_intelligence.preview_shared_cost_allocation": true, "cost_intelligence.allocate_shared_cost": true,
 }
 
