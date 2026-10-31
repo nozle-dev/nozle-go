@@ -202,6 +202,40 @@ _ = result
 
 The live [subscription management API reference](https://docs.nozle.dev/api/subscription-management) describes checkout and transition outcomes. A plan-change preview may be rejected when a target is ineligible or the organization has no transition policy.
 
+## Credit notes and refunds
+
+Needs a secret key and a workspace with credit notes enabled (otherwise `*nozle.APIError` 403 `feature_unavailable`). A credit note lowers a finalized invoice; its total is settled by crediting the customer's balance, refunding the original payment method (Stripe or Razorpay, started by Nozle), offsetting what the customer still owes, or a mix.
+
+```go
+items := []nozle.CreditNoteItem{{FeeID: "fee_123", AmountCents: 500}} // FeeID: fees[].nozle_id of the invoice
+
+// 1. Preview: nothing is created. Taxes and coupons are applied.
+preview, err := client.PreviewCreditNote(ctx, nozle.PreviewCreditNoteParams{InvoiceID: "inv_123", Items: items})
+// preview.MaxCreditableAmountCents is the credit note's total; MaxRefundableAmountCents is what was paid
+// and not refunded yet.
+
+// 2a. Refund the items to the original payment method (partial refund: fewer or smaller items).
+note, err := client.RefundCreditNote(ctx, nozle.RefundCreditNoteParams{
+    InvoiceID: "inv_123", Items: items, Reason: nozle.CreditNoteReasonDuplicatedCharge,
+    Metadata: map[string]string{"ticket": "T-42"},
+})
+// *note.RefundStatus is "pending", then "succeeded" or "failed" (webhook credit_note.refund_failure).
+
+// 2b. Or choose the split yourself: the three amounts add up to preview.MaxCreditableAmountCents.
+_, err = client.CreateCreditNote(ctx, nozle.CreateCreditNoteParams{
+    InvoiceID: "inv_123", Items: items, RefundAmountCents: 300, CreditAmountCents: 200,
+    Reason: nozle.CreditNoteReasonOrderChange,
+})
+
+page, err := client.ListCreditNotes(ctx, nozle.ListCreditNotesParams{CustomerID: "cus_1", RefundStatus: "failed"})
+note, err = client.GetCreditNote(ctx, note.NozleID)
+note, err = client.VoidCreditNote(ctx, note.NozleID) // voids the unused credit; never undoes a paid refund
+```
+
+`Reason` is one of `CreditNoteReasonDuplicatedCharge`, `ProductUnsatisfactory`, `OrderChange`, `OrderCancellation`, `FraudulentCharge`, `Other` (Core's default). `RefundCreditNote` returns an `*APIError` with code `CodeRefundExceedsPaidAmount` and creates nothing when less was paid than the items are worth; set `CreditRemainder: true` to refund what was paid and credit the rest.
+
+The SDK sends no `Idempotency-Key` with credit note requests yet (Core 11.22.0 accepts one on create), so `CreateCreditNote`, `RefundCreditNote` and `VoidCreditNote` are never retried, whatever `WithMaxRetries` says; `PreviewCreditNote`, `GetCreditNote` and `ListCreditNotes` are. After a transport error or a 5xx on `CreateCreditNote`, call `ListCreditNotes` with the `CustomerID` and `InvoiceNumber` before trying again. Test errors with `apiErr.HasCode(nozle.CodeCannotRefundUnpaidInvoice)` (also `CodeHigherThanRemainingInvoiceAmount`, `CodeHigherThanRemainingFeeAmount`, `CodeDoesNotMatchItemAmounts`, `CodeInvalidTypeOrStatus`, `CodeNoVoidableAmount`). Nozle stores only the provider's refund id and status, never card or bank details.
+
 ## Customers and Entities
 
 Customer upserts go to Core; Core derives the organization from the secret key. Entity reads and mutations use Engine. Mutation keys identify one logical change and should be reused with the same payload after an uncertain response.
