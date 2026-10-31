@@ -6,7 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
-## [0.27.0] - 2026-10-31
+## [0.27.0] - 2026-11-01
+
+v0.25.0 (event buffer) and v0.26.0 (credit holds) below were not tagged separately: their changes ship in v0.27.0.
 
 ### Added
 
