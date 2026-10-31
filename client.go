@@ -61,6 +61,14 @@ type Client struct {
 	subscriptions                    subscriptionCache
 }
 
+// defaultTransport keeps a connection open for each TrackBatch request in flight (up to 64); Go's default keeps 2
+// per host and opens a new one for every other request.
+var defaultTransport = func() *http.Transport {
+	t := http.DefaultTransport.(*http.Transport).Clone()
+	t.MaxIdleConnsPerHost = maxBatchConcurrency
+	return t
+}()
+
 func New(apiKey string, opts ...Option) *Client {
 	if strings.TrimSpace(apiKey) == "" {
 		apiKey = os.Getenv("NOZLE_SECRET_KEY")
@@ -68,7 +76,7 @@ func New(apiKey string, opts ...Option) *Client {
 	if strings.TrimSpace(apiKey) == "" {
 		panic("nozle: apiKey must not be empty (pass it or set NOZLE_SECRET_KEY)")
 	}
-	c := &Client{host: DefaultHost, maxRetries: 2, retryDelay: 500 * time.Millisecond, apiKey: apiKey, timeout: 10 * time.Second, httpClient: &http.Client{}}
+	c := &Client{host: DefaultHost, maxRetries: 2, retryDelay: 500 * time.Millisecond, apiKey: apiKey, timeout: 10 * time.Second, httpClient: &http.Client{Transport: defaultTransport}}
 	for _, o := range opts {
 		o(c)
 	}
@@ -82,7 +90,7 @@ func New(apiKey string, opts ...Option) *Client {
 	c.baseURL = strings.TrimRight(c.baseURL, "/")
 	c.eventsURL = strings.TrimRight(c.eventsURL, "/")
 	if c.httpClient == nil {
-		c.httpClient = &http.Client{}
+		c.httpClient = &http.Client{Transport: defaultTransport}
 	}
 	return c
 }
@@ -215,7 +223,7 @@ func (c *Client) endpoint(core bool) string {
 // are idempotent by their own id, a customer upsert converges, checks, previews and margin simulations
 // only read, and a shared-cost allocation of the same period returns its first run.
 var repeatableOps = map[string]bool{
-	"track": true, "meter": true, "cost_events.track": true, "customers.upsert": true,
+	"track": true, "meter": true, "track_batch": true, "cost_events.track": true, "customers.upsert": true,
 	"usage.check": true, "preview_subscription_transition": true, "preview_subscription_change": true,
 	"invoice_download_url": true, "margin.simulate": true,
 	"cost_intelligence.preview_shared_cost_allocation": true, "cost_intelligence.allocate_shared_cost": true,
@@ -276,6 +284,14 @@ func (c *Client) requestOnce(ctx context.Context, op, method string, core bool, 
 	if err != nil {
 		return err
 	}
+	errorLimit := int64(4096)
+	if op == "track_batch" {
+		// A batch body is gzipped, and a refused batch names up to 5000 events.
+		if err = gzipBody(req); err != nil {
+			return err
+		}
+		errorLimit = 4 << 20
+	}
 	req.Header.Set("Authorization", "Bearer "+c.apiKey)
 	if key != "" {
 		req.Header.Set("Idempotency-Key", key)
@@ -296,7 +312,7 @@ func (c *Client) requestOnce(ctx context.Context, op, method string, core bool, 
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		b, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		b, _ := io.ReadAll(io.LimitReader(resp.Body, errorLimit))
 		safe := strings.ReplaceAll(string(b), c.apiKey, "[REDACTED]")
 		var details any
 		if json.Unmarshal([]byte(safe), &details) == nil {

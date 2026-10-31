@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.23.0] - 2026-10-31
+
+### Added
+
+- `TrackBatch(ctx, []TrackParams, opts...)` sends many events through `/events/batch`: gzipped chunks of at most 5000 (the Engine 2.28.0 maximum; `WithBatchChunkSize`), a bounded number of requests in flight (`WithBatchConcurrency`), and one result per event (`BatchEventAccepted`, `BatchEventRejected` with Engine's per-field codes, or `BatchEventFailed` with the error of its request). Engine stores the valid events of a request and names the refused ones; with an Engine before 2.28.0, which refuses a whole request for one bad event, `TrackBatch` rejects those and resends the rest. A request above the Engine's maximum (`too_many_events`) is split in two and resent. Every event has a transaction ID (generated and returned if empty), so a retried request records each event once. Returns `*BatchEventError` (wraps `*ValidationError`, with the event `Index`) for invalid arguments before any request. Needs Engine 2.28.0 (gzip bodies).
+
+### Changed
+
+- The default HTTP client keeps up to 64 idle connections per host (Go's default keeps 2), so concurrent batch requests reuse connections. `WithHTTPClient` still replaces it.
+- `MeterResult.ErrorDetails` lists the events Engine 2.28.0 refused in a 200 (it stores the valid events of a batch), keyed by index then field. Before, a 200 meant every event was stored.
+
 ## [0.22.0] - 2026-10-30
 
 Needs Core with signed Standard Webhooks.

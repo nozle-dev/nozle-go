@@ -2,6 +2,7 @@ package nozle
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"io"
@@ -25,6 +26,31 @@ func newJSONRequest(ctx context.Context, method, url string, body interface{}) (
 	}
 	req.Header.Set("Content-Type", "application/json")
 	return req, nil
+}
+
+// gzipBody compresses a request body built by newJSONRequest.
+func gzipBody(req *http.Request) error {
+	if req.Body == nil {
+		return nil
+	}
+	plain, err := io.ReadAll(req.Body)
+	if err != nil {
+		return err
+	}
+	var packed bytes.Buffer
+	w := gzip.NewWriter(&packed)
+	if _, err = w.Write(plain); err != nil {
+		return err
+	}
+	if err = w.Close(); err != nil {
+		return err
+	}
+	b := packed.Bytes()
+	req.Body = io.NopCloser(bytes.NewReader(b))
+	req.GetBody = func() (io.ReadCloser, error) { return io.NopCloser(bytes.NewReader(b)), nil }
+	req.ContentLength = int64(len(b))
+	req.Header.Set("Content-Encoding", "gzip")
+	return nil
 }
 
 func readBody(resp *http.Response) ([]byte, error) {

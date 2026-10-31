@@ -302,7 +302,7 @@ The legacy wallet adapter `CheckAndDeduct` takes `CustomerID` and `Credits`; `Fe
 
 ## Feature Events, Cost Events, and entitlements
 
-`Can` checks an entitlement. A customer with several subscriptions needs `CanWithOptions(ctx, customerID, feature, nozle.CanOptions{SubscriptionID: ..., EntityID: ...})` (external IDs); without a selector the result is `Allowed=false`, `Reason="subscription_required"`. `CanWithMetadata` also sends the call's properties, which Engine uses to estimate its cost and revenue (`economics`) and to apply a margin policy; they do not filter usage or change the plan limit check. Neither deducts product credits. `Track` sends one Feature Event through Engine; `Meter` sends an explicit batch of 1–100. Supply a stable transaction ID when coordinating retries or linking Cost Events. `Meter` writes the ID it generates for an event without one back into your slice, so retrying the same slice after an error or timeout sends the same IDs and Engine records each event once; build a new slice only for new events. `Track` does not return its generated ID; `TrackWithID` does. `MeterWithResult` returns the accepted events; the batch is all-or-nothing, so a rejected one is a 422 `*APIError` whose `BatchErrors()` maps each failing event index to its errors. `APIError.Error()` includes the Engine error code, also available from `Code()`. `AmountDueCents` on a checkout result is `""` when omitted and `"0"` when zero, so keep it (or pass your own `TransactionID`) when you may retry. `Track` sends the customer and the optional subscription ID; without one, Engine resolves the customer's single active subscription, and a customer with none or several returns a 422 `*APIError` with code `active_subscription_not_found` or `active_subscription_ambiguous`, so pass an explicit ID.
+`Can` checks an entitlement. A customer with several subscriptions needs `CanWithOptions(ctx, customerID, feature, nozle.CanOptions{SubscriptionID: ..., EntityID: ...})` (external IDs); without a selector the result is `Allowed=false`, `Reason="subscription_required"`. `CanWithMetadata` also sends the call's properties, which Engine uses to estimate its cost and revenue (`economics`) and to apply a margin policy; they do not filter usage or change the plan limit check. Neither deducts product credits. `Track` sends one Feature Event through Engine; `Meter` sends an explicit batch of 1–100. Supply a stable transaction ID when coordinating retries or linking Cost Events. `Meter` writes the ID it generates for an event without one back into your slice, so retrying the same slice after an error or timeout sends the same IDs and Engine records each event once; build a new slice only for new events. `Track` does not return its generated ID; `TrackWithID` does. `MeterWithResult` returns the accepted events and, in `ErrorDetails`, the refused ones by index: Engine 2.28.0 stores the valid events of a batch. A batch with no valid event (or any refused event on an earlier Engine) is a 422 `*APIError` whose `BatchErrors()` maps each failing event index to its errors. `APIError.Error()` includes the Engine error code, also available from `Code()`. `AmountDueCents` on a checkout result is `""` when omitted and `"0"` when zero, so keep it (or pass your own `TransactionID`) when you may retry. `Track` sends the customer and the optional subscription ID; without one, Engine resolves the customer's single active subscription, and a customer with none or several returns a 422 `*APIError` with code `active_subscription_not_found` or `active_subscription_ambiguous`, so pass an explicit ID.
 
 ```go
 transactionID := nozle.CreateTransactionID()
@@ -323,6 +323,39 @@ _ = accepted.Accepted
 ```
 
 Cost Event acceptance means ingestion accepted the event; rating and settlement occur later. For a standalone cost, provide `ExternalCustomerID` instead of `ParentTransactionID`. Go accepts RFC3339 or Unix seconds in Feature Event timestamps and sends Unix seconds to Engine. Reuse a transaction or Cost Event ID for the same logical event.
+
+### Batching events
+
+`TrackBatch` sends many events through Engine's `/events/batch` in one call. It takes `TrackParams` values, splits them into requests, sends them in parallel and returns one result per event. `Meter` stays the single-request call (1 to 100 events, one request).
+
+```go
+res, err := client.TrackBatch(ctx, []nozle.TrackParams{
+    {CustomerID: "cust_123", Event: "api_call", Metadata: map[string]any{"tokens": 100}},
+    {CustomerID: "cust_456", Event: "api_call", Timestamp: "2026-10-29T09:30:00Z"},
+}) // nozle.WithBatchChunkSize(50), nozle.WithBatchConcurrency(8)
+if err != nil { return err } // invalid arguments only
+fmt.Println(res.Accepted, res.Rejected, res.Failed)
+for _, r := range res.Results {
+    switch r.Status {
+    case nozle.BatchEventRejected:
+        log.Println(r.Index, r.Errors) // map[code:[value_is_mandatory]]
+    case nozle.BatchEventFailed:
+        log.Println(r.Index, r.TransactionID, r.Err) // resend with this TransactionID
+    }
+}
+```
+
+The contract:
+
+- **Size.** At most 5000 events per request: the Engine default (`LAGO_EVENTS_BATCH_MAX_LENGTH`, Engine 2.28.0). `WithBatchChunkSize` (1 to `MaxTrackBatchChunkSize` = 5000, default 5000) sets the size of each request, and a longer list is split. An Engine with a lower maximum answers `too_many_events`; `TrackBatch` then splits that request in two and resends each half. `WithBatchConcurrency` (1 to 64, default 4) is how many requests are in flight at once. Bodies are gzipped (Engine 2.28.0 or later); the decoded body limit is 16 MiB.
+- **Result.** `Results[i]` belongs to `events[i]` and has a `Status`: `BatchEventAccepted` (stored), `BatchEventRejected` (Engine refused this event; `Errors` maps a field to codes, and resending it unchanged fails again) or `BatchEventFailed` (its request failed: `Err` is an `*APIError`, a `*TransportError` or a context error, and the event may or may not be stored). `Accepted`, `Rejected`, `Failed` and `Total` count them. `TrackBatch` returns an error only for invalid arguments; a failed request never hides the results of the others.
+- **Partial requests.** Engine stores the valid events of a request and names the refused ones by position; `TrackBatch` marks those `BatchEventRejected`. An Engine before 2.28.0 refuses a whole request for one invalid event and stores nothing: `TrackBatch` then marks the named events `BatchEventRejected` and resends the valid rest (at most 3 requests for one chunk), so one bad event costs its own result only. Events of a customer whose payment is overdue come back rejected with `customer_payment_overdue`.
+- **Idempotency.** Every event has a transaction ID: yours, or a generated UUID version 7 that is also returned in `Results[i].TransactionID`. Engine records an event once per transaction ID, so a request retried after a network error, timeout, 429 or 5xx (`WithMaxRetries`, default 2) does not store an event twice. IDs must be unique in one call. To retry `BatchEventFailed` events yourself, pass the same `TransactionID` and the same `Timestamp`.
+- **Timestamps.** Each event keeps its own `Timestamp` (RFC 3339 or Unix seconds); without one Engine stamps it on arrival. There is no backfill flag: `/events/batch` accepts old and future timestamps as sent. It does not apply the 24 hours ahead and 366 days back window that `TrackUsage` and cost events enforce.
+- **Subscription.** As for `Track`, pass `SubscriptionID` or let Engine resolve the customer's one active subscription. A customer with several or none is a 422 for that event, so it comes back rejected.
+- **Invalid arguments** (`*BatchEventError`, which wraps a `*ValidationError` and has the event's `Index`, or -1 for an option; returned before any request): a missing `CustomerID` or `Event`, a bad `Timestamp`, a repeated `TransactionID`, or an out-of-range chunk size or concurrency.
+
+`TrackBatch` is not `TrackUsage`: it records events like `Track` does and does not deduct credits, apply a money-billed feature's checks or return a balance. An empty list sends nothing. There is no client-side buffer yet; to batch events as they happen, collect them and call `TrackBatch`.
 
 ## OpenAI and Anthropic usage capture
 
