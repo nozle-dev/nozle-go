@@ -52,9 +52,9 @@ const (
 // unavailable, its thresholds (empty when not set), and the decision with its reason, for example
 // "minimum_margin_percentage_not_met", "maximum_estimated_cost_exceeded", "within_policy" or "economics_not_configured".
 type CanPolicy struct {
-	VersionID                 string         `json:"version_id"`
-	Mode                      PolicyDecision `json:"mode"`
-	OnUnavailable             PolicyDecision `json:"on_unavailable"`
+	VersionID     string         `json:"version_id"`
+	Mode          PolicyDecision `json:"mode"`
+	OnUnavailable PolicyDecision `json:"on_unavailable"`
 	// OnNotConfigured is what the policy does for a feature with no Cost Rule (Engine 2.39.0); empty on older Engines.
 	OnNotConfigured PolicyDecision `json:"on_not_configured,omitempty"`
 	// Scope is the target of the policy that decided the call (Engine 2.40.0); empty on older Engines.

@@ -4,27 +4,25 @@ import "encoding/json"
 
 // Decimal is an exact product-credit value, transported as a JSON string.
 type Decimal string
-type Customer struct {
-	ExternalID           string                        `json:"external_id"`
-	Name                 string                        `json:"name,omitempty"`
-	Email                string                        `json:"email,omitempty"`
-	BillingConfiguration *CustomerBillingConfiguration `json:"billing_configuration,omitempty"`
-}
 
-// UnmarshalJSON drops a billing_configuration without a payment provider, which
-// Core returns for customers that have none, so a decoded Customer can be sent
-// back to UpsertCustomer unchanged.
-func (c *Customer) UnmarshalJSON(data []byte) error {
-	type plain Customer
-	var v plain
-	if err := json.Unmarshal(data, &v); err != nil {
-		return err
-	}
-	if v.BillingConfiguration != nil && v.BillingConfiguration.PaymentProvider == "" {
-		v.BillingConfiguration = nil
-	}
-	*c = Customer(v)
-	return nil
+// Customer is a customer as sent to UpsertCustomer and as Core returns it. Address, ShippingAddress and TaxID
+// are mapped to Core's flat keys (address_line1, zipcode, tax_identification_number, tax_identification_type...).
+// The last three fields are read-only: they come from Core and are never sent.
+type Customer struct {
+	ExternalID           string
+	Name                 string
+	Email                string
+	CustomerType         string // "company" or "individual"
+	LegalName            string
+	Address              *CustomerAddress
+	ShippingAddress      *CustomerAddress
+	TaxID                *CustomerTaxID
+	ClearTaxID           bool // send tax_identification_number: null, removing the stored tax ID; ignored when TaxID is set
+	BillingConfiguration *CustomerBillingConfiguration
+
+	TaxIdentificationStatus   TaxIDStatus
+	TaxTreatment              TaxTreatment
+	TaxIdentificationWarnings []string // non-blocking notes on a write, for example "country_mismatch"
 }
 
 // CustomerBillingConfiguration assigns a payment provider to a customer.

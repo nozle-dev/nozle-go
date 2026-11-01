@@ -70,10 +70,17 @@ func withoutUnset(body []byte) ([]byte, error) {
 	return json.Marshal(compact(value))
 }
 
+// explicitNull lists fields where null means "clear it" and so is sent. Customer.MarshalJSON writes the key only
+// when ClearTaxID is set, so an unset one never reaches here.
+var explicitNull = map[string]bool{"tax_identification_number": true}
+
 func compact(value any) any {
 	switch v := value.(type) {
 	case map[string]any:
 		for key, item := range v {
+			if item == nil && explicitNull[key] {
+				continue
+			}
 			if item == nil || item == "" {
 				delete(v, key)
 				continue

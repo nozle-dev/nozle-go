@@ -44,6 +44,14 @@ func (c *Client) UpsertCustomer(ctx context.Context, p Customer) (Customer, erro
 			return out.Customer, err
 		}
 	}
+	if t := p.TaxID; t != nil {
+		// Mirrors Core's "type needs a value"; the format is Core's to judge. A value alone is accepted (legacy IDs).
+		if t.Type != "" || t.Value == "" {
+			if err := required("customers.upsert", "tax_id.value", t.Value); err != nil {
+				return out.Customer, err
+			}
+		}
+	}
 	err := c.request(ctx, "customers.upsert", "POST", true, "/api/v1/customers", map[string]any{"customer": p}, &out, "")
 	return out.Customer, err
 }
