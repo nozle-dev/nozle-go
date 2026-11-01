@@ -38,6 +38,16 @@ const (
 	PolicyDecisionDeny  PolicyDecision = "deny"
 )
 
+// PolicyScope is the target of the margin policy that decided a call (Engine 2.40.0).
+type PolicyScope = string
+
+const (
+	PolicyScopeCustomer     PolicyScope = "customer"
+	PolicyScopePlan         PolicyScope = "plan"
+	PolicyScopeFeature      PolicyScope = "feature"
+	PolicyScopeOrganization PolicyScope = "organization"
+)
+
 // CanPolicy is the margin policy version that decided a Can call: its mode, what it does when the economics are
 // unavailable, its thresholds (empty when not set), and the decision with its reason, for example
 // "minimum_margin_percentage_not_met", "maximum_estimated_cost_exceeded", "within_policy" or "economics_not_configured".
@@ -45,6 +55,10 @@ type CanPolicy struct {
 	VersionID                 string         `json:"version_id"`
 	Mode                      PolicyDecision `json:"mode"`
 	OnUnavailable             PolicyDecision `json:"on_unavailable"`
+	// OnNotConfigured is what the policy does for a feature with no Cost Rule (Engine 2.39.0); empty on older Engines.
+	OnNotConfigured PolicyDecision `json:"on_not_configured,omitempty"`
+	// Scope is the target of the policy that decided the call (Engine 2.40.0); empty on older Engines.
+	Scope                     PolicyScope    `json:"scope,omitempty"`
 	MinimumMarginAmount       Decimal        `json:"minimum_margin_amount,omitempty"`
 	MinimumMarginPercent      Decimal        `json:"minimum_margin_percent,omitempty"`
 	MaximumEstimatedCost      Decimal        `json:"maximum_estimated_cost,omitempty"`
