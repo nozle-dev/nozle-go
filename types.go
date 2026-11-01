@@ -21,10 +21,42 @@ type CanResult struct {
 	Configuration map[string]string `json:"configuration"`
 	Overage       bool              `json:"overage"`
 	Economics     *CanEconomics     `json:"economics"`
-	Policy        json.RawMessage   `json:"policy"`
+	// Policy is the margin policy version that decided the call, with the decision and its reason. It is nil when
+	// no margin policy applies. A policy in warn mode leaves Allowed true, so check Policy.Decision or MarginWarning.
+	Policy *CanPolicy `json:"policy"`
 	// Budget is the spend limit that refused the call (budget_exceeded), else the tightest one covering the
 	// Feature; nil without one (Engine 2.34.0).
 	Budget *Budget `json:"budget"`
+}
+
+// PolicyDecision is the outcome of a margin policy for one call.
+type PolicyDecision = string
+
+const (
+	PolicyDecisionAllow PolicyDecision = "allow"
+	PolicyDecisionWarn  PolicyDecision = "warn"
+	PolicyDecisionDeny  PolicyDecision = "deny"
+)
+
+// CanPolicy is the margin policy version that decided a Can call: its mode, what it does when the economics are
+// unavailable, its thresholds (empty when not set), and the decision with its reason, for example
+// "minimum_margin_percentage_not_met", "maximum_estimated_cost_exceeded", "within_policy" or "economics_not_configured".
+type CanPolicy struct {
+	VersionID                 string         `json:"version_id"`
+	Mode                      PolicyDecision `json:"mode"`
+	OnUnavailable             PolicyDecision `json:"on_unavailable"`
+	MinimumMarginAmount       Decimal        `json:"minimum_margin_amount,omitempty"`
+	MinimumMarginPercent      Decimal        `json:"minimum_margin_percent,omitempty"`
+	MaximumEstimatedCost      Decimal        `json:"maximum_estimated_cost,omitempty"`
+	MaximumSnapshotAgeSeconds int            `json:"maximum_snapshot_age_seconds"`
+	Decision                  PolicyDecision `json:"decision"`
+	Reason                    string         `json:"reason"`
+}
+
+// MarginWarning reports whether a margin policy in warn mode flagged this call: it is allowed, but below the policy's
+// thresholds or with economics the policy could not estimate.
+func (r CanResult) MarginWarning() bool {
+	return r.Policy != nil && r.Policy.Decision == PolicyDecisionWarn
 }
 
 // Plan is a billing plan returned by the /api/v1/plans endpoint.

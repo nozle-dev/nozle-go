@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.29.0] - 2026-11-01
+
+### Added
+
+- `CanPolicy`, the margin policy version that decided a `Can` call: `VersionID`, `Mode`, `OnUnavailable`, `MinimumMarginAmount`, `MinimumMarginPercent` and `MaximumEstimatedCost` (`Decimal`, empty when not set), `MaximumSnapshotAgeSeconds`, `Decision` and `Reason`. The constants `PolicyDecisionAllow`, `PolicyDecisionWarn` and `PolicyDecisionDeny`.
+- `CanResult.MarginWarning()`: `true` when a policy in `warn` mode flagged an allowed call. A warning leaves `Allowed` true, so it is easy to miss; a refusal is `Allowed == false` with `Reason` `RefusalReasonEconomicPolicyDenied`.
+
+### Changed
+
+- **Breaking for code that reads it:** `CanResult.Policy` is a `*CanPolicy` instead of `json.RawMessage` (nil when no margin policy applies). Code that decoded the raw JSON itself can read the fields directly.
+
 ## [0.28.0] - 2026-11-01
 
 ### Added
