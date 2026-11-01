@@ -49,6 +49,20 @@ func TestCan_policyIsTypedAndAllowedWithinPolicy(t *testing.T) {
 	}
 }
 
+func TestCan_policyCarriesOnNotConfiguredAndScope(t *testing.T) {
+	body := `{"allowed":true,"feature_type":"metered","used":0,"limit":null,"remaining":null,"policy":{"version_id":"v3","mode":"deny",
+"on_unavailable":"warn","on_not_configured":"deny","scope":"plan","maximum_snapshot_age_seconds":300,"decision":"allow","reason":"within_policy"}}`
+	res := canWith(t, body)
+	if res.Policy == nil || res.Policy.OnNotConfigured != nozle.PolicyDecisionDeny || res.Policy.Scope != nozle.PolicyScopePlan {
+		t.Fatalf("policy %+v", res.Policy)
+	}
+	// An older Engine sends neither field.
+	old := canWith(t, canAllowedBody)
+	if old.Policy.OnNotConfigured != "" || old.Policy.Scope != "" {
+		t.Fatalf("policy %+v", old.Policy)
+	}
+}
+
 func TestCan_marginDenialCarriesThePolicyReason(t *testing.T) {
 	res := canWith(t, canDeniedBody)
 	if res.Allowed || res.Reason != nozle.RefusalReasonEconomicPolicyDenied || res.Policy == nil ||

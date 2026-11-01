@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.30.0] - 2026-11-01
+
+### Added
+
+- `CanPolicy.OnNotConfigured` (Engine 2.39.0): what the margin policy does for a feature with no Cost Rule (`PolicyDecisionAllow`, `PolicyDecisionWarn` or `PolicyDecisionDeny`).
+- `CanPolicy.Scope` (Engine 2.40.0): the target of the policy that decided the call, with the constants `PolicyScopeCustomer`, `PolicyScopePlan`, `PolicyScopeFeature` and `PolicyScopeOrganization`.
+
+Both are empty when an older Engine does not send them.
+
 ## [0.29.0] - 2026-11-01
 
 ### Added
