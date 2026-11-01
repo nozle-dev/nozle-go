@@ -47,6 +47,9 @@ type Budget struct {
 	Status string `json:"status"`
 	// AsOf is the time of the latest event booked into Spent; empty before any.
 	AsOf string `json:"as_of"`
+	// CountedFrom is when counting began: PeriodStart once earlier spend in the period is counted, else when the
+	// count started; empty before any. Engine 2.38.0.
+	CountedFrom string `json:"counted_from"`
 }
 
 // BudgetList answers ListBudgets.

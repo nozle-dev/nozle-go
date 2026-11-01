@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- `Budget.CountedFrom` (Engine 2.38.0): when counting began, `PeriodStart` once earlier spend in the period is counted (NLD-21).
 - `Buffer *EventBuffer` on `ProviderWrapOptions` (`WrapOpenAIHTTPClient`, `WrapAnthropicHTTPClient`) and `CaptureOptions` (`WrapHTTPClient`) (NLD-23). When set, each captured usage event is queued in that buffer instead of being sent from a goroutine, so `Flush` and `Close` deliver it and it is not lost when the process or serverless handler ends. The event is queued before the response body's last `Read` (or `Close`) returns, so `Close` right after reading the response includes it. Cost Events are still sent directly. A queue refusal (`ErrBufferFull`, `ErrBufferClosed`) goes to the buffer's `OnError` only, not to the wrapper's as well; `OnResult` still receives it. Without `Buffer` nothing changes.
 
 ### Changed
