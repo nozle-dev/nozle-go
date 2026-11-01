@@ -402,6 +402,17 @@ _ = accepted.Accepted
 
 Cost Event acceptance means ingestion accepted the event; rating and settlement occur later. For a standalone cost, provide `ExternalCustomerID` instead of `ParentTransactionID`. Go accepts RFC3339 or Unix seconds in Feature Event timestamps and sends Unix seconds to Engine. Reuse a transaction or Cost Event ID for the same logical event.
 
+### Voiding an event
+
+`Events.Void` (secret key) cancels a recorded event by its transaction ID and reverses its usage, credits, cost and margin. It works only while no finalized, open or pending invoice covers the event's time; otherwise it returns an `*APIError` with `CodePeriodInvoiced` and changes nothing. It is idempotent: a replay returns `Status` `already_voided`. `reason` is required, 1 to 500 characters.
+
+```go
+res, err := client.Events.Void(ctx, "tx_123", "wrong quantity")
+// res.Status "voided" | "already_voided"; res.Effects.Credits "refunded" | "not_applicable" | "pending"
+```
+
+Refusals: `CodeEventNotFound` (404), `CodePeriodInvoiced` (409), `CodeReasonRequired` (422); test with `HasCode`. A voided ID cannot be tracked again (`CodeTransactionVoided`, 409): send the corrected event with a new transaction ID. An effect is `pending` while its background step runs; replay the call to read the current state.
+
 ### Batching events
 
 `TrackBatch` sends many events through Engine's `/events/batch` in one call. It takes `TrackParams` values, splits them into requests, sends them in parallel and returns one result per event. `Meter` stays the single-request call (1 to 100 events, one request).
