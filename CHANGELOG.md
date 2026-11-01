@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.31.0] - 2026-11-01
+
+Needs a Core with trial updates (NLD-4).
+
+### Added
+
+- `Client.UpdateSubscription(ctx, externalID, nozle.TrialUpdate{...})` (`PUT /subscriptions/{id}`, Core): set exactly one of `ExtendDays`, `EndsAt` or `Convert`, plus an optional `Reason`. None or several returns a `*ValidationError` before any request. The result has `Subscription.TrialEndsAt` and `Subscription.InTrial`. It is not retried: a repeated extension would add twice.
+- `Client.ExtendTrial(ctx, externalID, days, endsAt, reason)` and `Client.ConvertTrial(ctx, externalID, reason)`.
+- The codes `CodeTrialInvalidParams`, `CodeTrialNotActive`, `CodeTrialExtensionTooLong`, `CodeTrialEndInPast`, `CodePaymentMethodRequired` and `CodePlanChangePending`, for `APIError.HasCode`.
+
 ## [0.30.0] - 2026-11-01
 
 ### Added

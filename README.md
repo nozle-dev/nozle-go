@@ -163,6 +163,15 @@ if err != nil { return err }
 _ = cancel
 ```
 
+`UpdateSubscription` changes a trial (secret key only). `nozle.TrialUpdate` takes exactly one of `ExtendDays`, `EndsAt` (RFC 3339, at least 30 minutes ahead) or `Convert`, plus an optional `Reason` of up to 500 characters; none or several returns a `*nozle.ValidationError` before any request. An extension is at most 90 days and a trial lasts at most 365 days in total (the server enforces both). `ExtendTrial` and `ConvertTrial` are shorthands. Convert bills at period end on a pay-in-arrears plan and invoices at once on pay-in-advance; payment follows the normal collection flow, and a failed payment does not undo the conversion. A refusal is an `*APIError`: test it with `HasCode(nozle.CodeTrialNotActive)` (also `CodeTrialInvalidParams`, `CodeTrialExtensionTooLong`, `CodeTrialEndInPast`, `CodePaymentMethodRequired`, and `CodePlanChangePending` as a 409). These calls are not retried.
+
+```go
+_, err := client.ExtendTrial(ctx, "sub_123", 14, "", "sales call")
+_, err = client.ExtendTrial(ctx, "sub_123", 0, "2026-12-01T00:00:00Z", "")
+res, err := client.ConvertTrial(ctx, "sub_123", "")
+// res.Subscription.InTrial == false
+```
+
 ### Plan versions
 
 When you change the price of a plan that customers pay for, Nozle saves it as the plan's next version: new customers get the new version, and existing subscribers keep the price they bought until you move them. `Plans` returns current versions only; each `Plan` has `Version` and `IsCurrent`.
