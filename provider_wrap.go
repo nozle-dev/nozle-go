@@ -14,12 +14,17 @@ import (
 )
 
 // ProviderWrapOptions configures automatic usage capture for provider HTTP clients.
-// OnError receives telemetry failures without changing the provider response.
+// OnError receives telemetry failures without changing the provider response; without it they are logged through
+// slog.Default().
 type ProviderWrapOptions struct {
 	CustomerID, SubscriptionID, FeatureCode, Feature, CostMeterCode string
 	DeliveryTimeout                                                 time.Duration
 	OnError                                                         func(error)
 	OnResult                                                        func(error)
+	// Buffer, when set, queues each usage event in this event buffer instead of sending it at once, so Flush and
+	// Close deliver it. The event is queued before the response body's last Read returns. Cost Events are still
+	// sent directly. The buffer's OnError reports what it does not deliver.
+	Buffer *EventBuffer
 }
 
 type providerHTTPTransport struct {
@@ -77,9 +82,10 @@ func (t *providerHTTPTransport) RoundTrip(req *http.Request) (*http.Response, er
 		return resp, nil
 	}
 	reader, writer := io.Pipe()
-	resp.Body = &observedBody{ReadCloser: resp.Body, writer: writer}
+	body := newObservedBody(resp.Body, writer, t.opts.Buffer != nil)
+	resp.Body = body
 	stream := strings.Contains(strings.ToLower(resp.Header.Get("Content-Type")), "text/event-stream")
-	go t.observe(reader, stream, model, started)
+	go t.observe(reader, body.markQueued, stream, model, started)
 	return resp, nil
 }
 
@@ -131,6 +137,30 @@ type observedBody struct {
 	writer   *io.PipeWriter
 	mu       sync.Mutex
 	finished bool
+	// queued, when set, is closed once the observer queued the usage event in a buffer or gave up; the body's end
+	// and Close wait for it, so the event is in the buffer before the caller can Flush or Close it.
+	queued     chan struct{}
+	queuedOnce sync.Once
+}
+
+func newObservedBody(body io.ReadCloser, writer *io.PipeWriter, buffered bool) *observedBody {
+	b := &observedBody{ReadCloser: body, writer: writer}
+	if buffered {
+		b.queued = make(chan struct{})
+	}
+	return b
+}
+
+func (b *observedBody) markQueued() {
+	if b.queued != nil {
+		b.queuedOnce.Do(func() { close(b.queued) })
+	}
+}
+
+func (b *observedBody) waitQueued() {
+	if b.queued != nil {
+		<-b.queued
+	}
 }
 
 func (b *observedBody) Read(p []byte) (int, error) {
@@ -149,6 +179,7 @@ func (b *observedBody) Read(p []byte) (int, error) {
 			}
 		}
 		b.mu.Unlock()
+		b.waitQueued()
 	}
 	return n, err
 }
@@ -160,6 +191,7 @@ func (b *observedBody) Close() error {
 		_ = b.writer.CloseWithError(io.ErrClosedPipe)
 	}
 	b.mu.Unlock()
+	b.waitQueued()
 	return b.ReadCloser.Close()
 }
 
@@ -185,8 +217,9 @@ type observedResponse struct {
 	Message *observedResponse `json:"message"`
 }
 
-func (t *providerHTTPTransport) observe(reader *io.PipeReader, stream bool, model string, started time.Time) {
+func (t *providerHTTPTransport) observe(reader *io.PipeReader, queued func(), stream bool, model string, started time.Time) {
 	defer reader.Close()
+	defer queued()
 	result := observedResponse{Model: model}
 	if stream {
 		var err error
@@ -213,20 +246,19 @@ func (t *providerHTTPTransport) observe(reader *io.PipeReader, stream bool, mode
 	ctx, cancel := context.WithTimeout(context.Background(), limit)
 	defer cancel()
 	p := ProviderCapture{CustomerID: t.opts.CustomerID, SubscriptionID: t.opts.SubscriptionID, FeatureCode: t.opts.FeatureCode, Feature: t.opts.Feature, CostMeterCode: t.opts.CostMeterCode, Model: result.Model, RequestID: result.ID, Latency: time.Since(started)}
-	var err error
+	u := result.Usage
+	var input, output int
+	var categories []tokenCategory
 	if t.provider == "openai" {
-		u := result.Usage
-		err = t.nozle.CaptureOpenAIUsage(ctx, p, OpenAIUsage{PromptTokens: u.PromptTokens, CompletionTokens: u.CompletionTokens, CachedInputTokens: u.PromptTokensDetails.CachedTokens, ReasoningTokens: u.CompletionTokensDetails.ReasoningTokens})
+		input, output, categories = openAITokens(OpenAIUsage{PromptTokens: u.PromptTokens, CompletionTokens: u.CompletionTokens, CachedInputTokens: u.PromptTokensDetails.CachedTokens, ReasoningTokens: u.CompletionTokensDetails.ReasoningTokens})
 	} else {
-		u := result.Usage
-		err = t.nozle.CaptureAnthropicUsage(ctx, p, AnthropicUsage{InputTokens: u.InputTokens, CachedInputTokens: u.CacheReadInputTokens, CacheWriteTokens: u.CacheCreationInputTokens, OutputTokens: u.OutputTokens})
+		input, output, categories = anthropicTokens(AnthropicUsage{InputTokens: u.InputTokens, CachedInputTokens: u.CacheReadInputTokens, CacheWriteTokens: u.CacheCreationInputTokens, OutputTokens: u.OutputTokens})
 	}
+	err := t.nozle.captureProvider(ctx, t.opts.Buffer, queued, t.provider, p, input, output, categories)
 	if t.opts.OnResult != nil {
 		t.opts.OnResult(err)
 	}
-	if err != nil && t.opts.OnError != nil {
-		t.opts.OnError(err)
-	}
+	reportCaptureError(t.opts.OnError, err)
 }
 
 func readProviderStream(reader io.Reader, provider, model string) (observedResponse, error) {

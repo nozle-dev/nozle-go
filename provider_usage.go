@@ -28,7 +28,9 @@ type tokenCategory struct {
 	tokens int
 }
 
-func (c *Client) captureProvider(ctx context.Context, provider string, p ProviderCapture, input, output int, categories []tokenCategory) error {
+// captureProvider records the usage event, through buf when it is set, then the cost events. queued, when set, runs
+// once the usage event is sent or queued, before any cost event request.
+func (c *Client) captureProvider(ctx context.Context, buf *EventBuffer, queued func(), provider string, p ProviderCapture, input, output int, categories []tokenCategory) error {
 	if p.FeatureCode == "" {
 		p.FeatureCode = "llm_tokens"
 	}
@@ -52,7 +54,17 @@ func (c *Client) captureProvider(ctx context.Context, provider string, p Provide
 	if p.Feature != "" {
 		properties["feature"] = p.Feature
 	}
-	if err := c.Track(ctx, TrackParams{CustomerID: p.CustomerID, SubscriptionID: p.SubscriptionID, Event: p.FeatureCode, Metadata: properties, TransactionID: p.TransactionID, Timestamp: p.Timestamp.UTC().Format("2006-01-02T15:04:05.000Z")}); err != nil {
+	event := TrackParams{CustomerID: p.CustomerID, SubscriptionID: p.SubscriptionID, Event: p.FeatureCode, Metadata: properties, TransactionID: p.TransactionID, Timestamp: p.Timestamp.UTC().Format("2006-01-02T15:04:05.000Z")}
+	var err error
+	if buf != nil {
+		err = buf.Track(event)
+	} else {
+		err = c.Track(ctx, event)
+	}
+	if queued != nil {
+		queued()
+	}
+	if err != nil {
 		return err
 	}
 	var captureErrors []error
@@ -71,20 +83,30 @@ func (c *Client) captureProvider(ctx context.Context, provider string, p Provide
 
 // CaptureOpenAIUsage records a completed OpenAI invocation and optional categorized cost events.
 func (c *Client) CaptureOpenAIUsage(ctx context.Context, p ProviderCapture, u OpenAIUsage) error {
+	input, output, categories := openAITokens(u)
+	return c.captureProvider(ctx, nil, nil, "openai", p, input, output, categories)
+}
+
+func openAITokens(u OpenAIUsage) (int, int, []tokenCategory) {
 	input := max(u.PromptTokens, 0)
 	output := max(u.CompletionTokens, 0)
 	cached := min(max(u.CachedInputTokens, 0), input)
 	reasoning := min(max(u.ReasoningTokens, 0), output)
-	return c.captureProvider(ctx, "openai", p, input, output, []tokenCategory{{"input", input - cached}, {"cached_input", cached}, {"output", output - reasoning}, {"reasoning", reasoning}})
+	return input, output, []tokenCategory{{"input", input - cached}, {"cached_input", cached}, {"output", output - reasoning}, {"reasoning", reasoning}}
 }
 
 // CaptureAnthropicUsage records a completed Anthropic invocation and optional categorized cost events.
 func (c *Client) CaptureAnthropicUsage(ctx context.Context, p ProviderCapture, u AnthropicUsage) error {
+	input, output, categories := anthropicTokens(u)
+	return c.captureProvider(ctx, nil, nil, "anthropic", p, input, output, categories)
+}
+
+func anthropicTokens(u AnthropicUsage) (int, int, []tokenCategory) {
 	input := max(u.InputTokens, 0)
 	cached := max(u.CachedInputTokens, 0)
 	cacheWrite := max(u.CacheWriteTokens, 0)
 	output := max(u.OutputTokens, 0)
-	return c.captureProvider(ctx, "anthropic", p, input+cached+cacheWrite, output, []tokenCategory{{"input", input}, {"cached_input", cached}, {"cache_write", cacheWrite}, {"output", output}})
+	return input + cached + cacheWrite, output, []tokenCategory{{"input", input}, {"cached_input", cached}, {"cache_write", cacheWrite}, {"output", output}}
 }
 
 // RecordUsage records one LLM call's token usage that your code read itself, with optional
@@ -98,5 +120,5 @@ func (c *Client) RecordUsage(ctx context.Context, p ProviderCapture, u Usage) er
 	cached := min(max(u.CachedInputTokens, 0), input)
 	cacheWrite := min(max(u.CacheWriteTokens, 0), input-cached)
 	reasoning := min(max(u.ReasoningTokens, 0), output)
-	return c.captureProvider(ctx, u.Provider, p, input, output, []tokenCategory{{"input", input - cached - cacheWrite}, {"cached_input", cached}, {"cache_write", cacheWrite}, {"output", output - reasoning}, {"reasoning", reasoning}})
+	return c.captureProvider(ctx, nil, nil, u.Provider, p, input, output, []tokenCategory{{"input", input - cached - cacheWrite}, {"cached_input", cached}, {"cache_write", cacheWrite}, {"output", output - reasoning}, {"reasoning", reasoning}})
 }

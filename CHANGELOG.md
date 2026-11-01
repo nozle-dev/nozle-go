@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.28.0] - 2026-11-01
+
+### Added
+
+- `Buffer *EventBuffer` on `ProviderWrapOptions` (`WrapOpenAIHTTPClient`, `WrapAnthropicHTTPClient`) and `CaptureOptions` (`WrapHTTPClient`) (NLD-23). When set, each captured usage event is queued in that buffer instead of being sent from a goroutine, so `Flush` and `Close` deliver it and it is not lost when the process or serverless handler ends. The event is queued before the response body's last `Read` (or `Close`) returns, so `Close` right after reading the response includes it. Cost Events are still sent directly. A queue refusal (`ErrBufferFull`, `ErrBufferClosed`) goes to the buffer's `OnError` only, not to the wrapper's as well; `OnResult` still receives it. Without `Buffer` nothing changes.
+
+### Changed
+
+- Without `OnError`, undelivered events are logged through `log/slog` (`slog.Default()`) at error level, one record per report with `code`, `count` and `error` and never the events or the API key: by the event buffer (codes `buffer_full`, `rejected`, `failed`, `closed`; it used the standard `log` package before) and by the usage capture wrappers (code `failed`; their errors were dropped silently before). A caller's `OnError` still replaces the default. The wrappers' missing Feature check still runs only with `OnError`.
+
 ## [0.27.0] - 2026-11-01
 
 v0.25.0 (event buffer) and v0.26.0 (credit holds) below were not tagged separately: their changes ship in v0.27.0.

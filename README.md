@@ -451,11 +451,11 @@ if errors.Is(err, nozle.ErrBufferFull) {
 - **When it sends.** A flush starts when `MaxBatchSize` events are waiting (default 500, 1 to 5000), every `FlushInterval` (default 5 s; a negative value disables the timer), and on `Flush(ctx)` and `Close(ctx)`. One flush runs at a time; a trigger during a flush waits for it. A flush sends everything waiting in one `TrackBatch` call, in requests of at most `MaxBatchSize` events.
 - **Idempotency.** `Track` sets the transaction ID (yours, or a generated UUID version 7, which `TrackWithID` returns) when the event is queued. Every retry and resend carries it, so Engine records the event once. An ID tracked twice waits for the next request, because `TrackBatch` refuses a repeated ID in one call.
 - **Bounded memory.** At most `MaxQueueSize` events are held (default 10 000), waiting or in a request in flight. When the queue is full, `Track` drops the new event, reports `buffer_full` and returns `ErrBufferFull`. `Len()` is the number of events waiting.
-- **Never silent.** Every event that is not delivered goes to `OnError` with an `*EventBufferError` whose `Code` is `buffer_full`, `rejected` (Engine refused it; `Errors` has the field codes; not retried), `failed` (its requests failed `MaxAttempts` flushes, default 3; `Err` is the last error) or `closed` (`Track` after `Close`, which returns `ErrBufferClosed`). A failed event goes back to the front of the queue for the next flush, with the same transaction ID. Without `OnError` the buffer logs through the standard `log` package. `Track` returns a `*ValidationError` for an event `TrackBatch` would refuse (no `CustomerID` or `Event`, a bad `Timestamp`).
+- **Never silent.** Every event that is not delivered goes to `OnError` with an `*EventBufferError` whose `Code` is `buffer_full`, `rejected` (Engine refused it; `Errors` has the field codes; not retried), `failed` (its requests failed `MaxAttempts` flushes, default 3; `Err` is the last error) or `closed` (`Track` after `Close`, which returns `ErrBufferClosed`). A failed event goes back to the front of the queue for the next flush, with the same transaction ID. Without `OnError` the buffer logs one `slog.Default()` error record per report, with `code`, `count` and `error` (never the events or the API key). `Track` returns a `*ValidationError` for an event `TrackBatch` would refuse (no `CustomerID` or `Event`, a bad `Timestamp`).
 - **Backoff.** After a flush with a failed event, size and timer flushes pause for 1 s, doubling after each such flush up to 60 s, so the buffer rides out an outage instead of spending every attempt in seconds. Events keep queueing during the pause, up to `MaxQueueSize`. A flush without failures ends the pause. `Flush` and `Close` do not wait for it.
 - **Flush and Close.** `Flush(ctx)` sends everything waiting now and returns when done. `Close(ctx)` stops the timer, flushes until every event is delivered or reported (a failed event is retried up to `MaxAttempts` flushes) and refuses later `Track` calls. When `ctx` ends first, `Close` cancels the request in flight, reports the remaining events as `failed` with the context error and returns `ctx.Err()`.
 - **Serverless.** A function may be frozen or stopped as soon as it returns. Call `buf.Flush(ctx)` (or `buf.Close(ctx)`) before returning from each invocation.
-- The OpenAI and Anthropic usage capture does not go through the buffer yet. The queue is in memory only.
+- **LLM usage capture.** Set `Buffer` on `ProviderWrapOptions` or `CaptureOptions` to queue captured usage events in the buffer (see below). The queue is in memory only.
 
 ## OpenAI and Anthropic usage capture
 
@@ -472,7 +472,19 @@ openaiClient := openai.NewClient(openaiopt.WithHTTPClient(providerHTTP))
 _ = openaiClient
 ```
 
-Use `WrapAnthropicHTTPClient` for Anthropic. The OpenAI wrapper requests final usage for streams automatically. Provider responses remain available if telemetry fails; `OnError` receives the failure. See the [official-provider integration example](examples/provider-auto/README.md), whose tests exercise both provider SDKs with completed responses and streams.
+Use `WrapAnthropicHTTPClient` for Anthropic. The OpenAI wrapper requests final usage for streams automatically. Provider responses remain available if telemetry fails; `OnError` receives the failure, and without it the failure is logged through `slog.Default()` (code, count and error message only).
+
+By default each usage event is sent from a background goroutine, so one still in flight when the process or a serverless handler ends is lost. Pass an event buffer as `Buffer` (on `ProviderWrapOptions`, or on `CaptureOptions` for `WrapHTTPClient`) to queue the events there instead; `Flush` and `Close` then deliver them. The event is queued before the response body's last `Read` or `Close` returns, so flushing right after reading the response includes it. Cost Events are still sent directly, and the buffer's `OnError` reports events it does not deliver.
+
+```go
+buf := client.NewEventBuffer(nozle.EventBufferOptions{})
+defer buf.Close(ctx)
+providerHTTP, err := nozle.WrapOpenAIHTTPClient(&http.Client{}, client, nozle.ProviderWrapOptions{
+    CustomerID: "customer-123", FeatureCode: "llm_tokens", Buffer: buf,
+})
+```
+
+See the [official-provider integration example](examples/provider-auto/README.md), whose tests exercise both provider SDKs with completed responses and streams.
 
 For applications using other provider clients or requiring durable queued delivery, pass usage metadata explicitly after the provider call:
 
