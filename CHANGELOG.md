@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.32.0] - unreleased
+
+Needs an Engine with event void (NLD-8).
+
+### Added
+
+- `Client.Events.Void(ctx, transactionID, reason)` (`POST /events/{transaction_id}/void`, Engine): voids a recorded usage event and reverses its usage, credits, cost and margin. `reason` is required, 1 to 500 characters (a `*ValidationError` before any request otherwise). It is idempotent: a replay returns `Status` `already_voided`, and a failed call is retried like `Track`. The result is `*EventVoid` with `Status`, `Reason`, `VoidedAt`, `Actor` and `Effects` (each `reversed`, `recomputed`, `refunded`, `not_applicable` or `pending`).
+- The codes `CodeEventNotFound` (404), `CodePeriodInvoiced` (409), `CodeReasonRequired` (422) and `CodeTransactionVoided` (409 on a later `Track` of that ID), for `APIError.HasCode`.
+
 ## [0.31.0] - 2026-11-01
 
 Needs a Core with trial updates (NLD-4).

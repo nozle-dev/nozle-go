@@ -59,6 +59,8 @@ type Client struct {
 	httpClient                       *http.Client
 	usageTimestamps                  usageTimestampMemo
 	subscriptions                    subscriptionCache
+	// Events holds the calls on recorded events, such as Events.Void.
+	Events *EventsService
 }
 
 // defaultTransport keeps a connection open for each TrackBatch request in flight (up to 64); Go's default keeps 2
@@ -77,6 +79,7 @@ func New(apiKey string, opts ...Option) *Client {
 		panic("nozle: apiKey must not be empty (pass it or set NOZLE_SECRET_KEY)")
 	}
 	c := &Client{host: DefaultHost, maxRetries: 2, retryDelay: 500 * time.Millisecond, apiKey: apiKey, timeout: 10 * time.Second, httpClient: &http.Client{Transport: defaultTransport}}
+	c.Events = &EventsService{c}
 	for _, o := range opts {
 		o(c)
 	}
@@ -227,7 +230,7 @@ var repeatableOps = map[string]bool{
 	"track": true, "meter": true, "track_batch": true, "cost_events.track": true, "customers.upsert": true,
 	"usage.check": true, "preview_subscription_transition": true, "preview_subscription_change": true,
 	"invoice_download_url": true, "preview_credit_note": true, "margin.simulate": true,
-	"usage.finalize_hold": true, "usage.release_hold": true,
+	"usage.finalize_hold": true, "usage.release_hold": true, "events.void": true,
 	"cost_intelligence.preview_shared_cost_allocation": true, "cost_intelligence.allocate_shared_cost": true,
 }
 
