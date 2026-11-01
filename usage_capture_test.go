@@ -255,3 +255,67 @@ func TestWrapHTTPClientReportsAMissingFeatureOnce(t *testing.T) {
 		t.Fatalf("reported more than once: %v", <-failures)
 	}
 }
+
+func TestWrapHTTPClientQueuesUsageInTheBuffer(t *testing.T) {
+	b := newBatchServer(t, nil)
+	billing := b.client()
+	buf := billing.NewEventBuffer(nozle.EventBufferOptions{FlushInterval: -1})
+	server := provider(t, "application/json", `{"id":"c9","model":"m1","usage":{"prompt_tokens":3,"completion_tokens":2}}`, nil)
+	wrapped, err := nozle.WrapHTTPClient(nil, billing, nozle.CaptureOptions{CustomerID: "cust_1", Buffer: buf})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := wrapped.Post(server.URL+"/v1/chat/completions", "application/json", strings.NewReader(`{"model":"m1","messages":[]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _ = io.Copy(io.Discard, resp.Body)
+	_ = resp.Body.Close()
+	if buf.Len() != 1 || len(b.requestsSoFar()) != 0 {
+		t.Fatalf("queued %d, sent %d requests before Close", buf.Len(), len(b.requestsSoFar()))
+	}
+	if err := buf.Close(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	sent := b.requestsSoFar()
+	if len(sent) != 1 || len(sent[0]) != 1 {
+		t.Fatalf("sent %v", sent)
+	}
+	e := sent[0][0]
+	if e.Code != "llm_tokens" || e.CustomerID != "cust_1" || e.TransactionID != "llm-openai-c9" || e.Properties["input_tokens"] != float64(3) {
+		t.Fatalf("sent %#v", e)
+	}
+}
+
+func TestWrapHTTPClientLogsFailuresThroughSlogByDefault(t *testing.T) {
+	billing, _ := usageRecorder(t, true)
+	logs := captureSlog(t)
+	server := provider(t, "application/json", `{"id":"c4","usage":{"prompt_tokens":1,"completion_tokens":1}}`, nil)
+	call := func(opts nozle.CaptureOptions) {
+		wrapped, _ := nozle.WrapHTTPClient(nil, billing, opts)
+		resp, err := wrapped.Post(server.URL+"/v1/chat/completions", "application/json", strings.NewReader(`{}`))
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, _ = io.Copy(io.Discard, resp.Body)
+		_ = resp.Body.Close()
+	}
+
+	call(nozle.CaptureOptions{CustomerID: "cust_1"})
+	waitFor(t, "a log record", func() bool { return len(logs.all()) > 0 })
+	got := logs.all()[0]
+	if got["code"] != "failed" || got["count"] != "1" || !strings.Contains(got["error"], "503") || strings.Contains(got["error"], "sk_test") {
+		t.Fatalf("logged %v", got)
+	}
+
+	failures := make(chan error, 1)
+	call(nozle.CaptureOptions{CustomerID: "cust_1", OnError: func(err error) { failures <- err }})
+	select {
+	case <-failures:
+	case <-time.After(3 * time.Second):
+		t.Fatal("OnError not called")
+	}
+	if n := len(logs.all()); n != 1 {
+		t.Fatalf("logged %d records with OnError set", n)
+	}
+}

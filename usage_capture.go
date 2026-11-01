@@ -30,8 +30,13 @@ type CaptureOptions struct {
 	// (stream_options.include_usage), for a server that rejects the field.
 	SkipStreamUsage bool
 	DeliveryTimeout time.Duration
-	// OnError receives recording failures. The provider response is never affected.
+	// OnError receives recording failures. The provider response is never affected. Without it failures are logged
+	// through slog.Default().
 	OnError func(error)
+	// Buffer, when set, queues each usage event in this event buffer instead of sending it at once, so Flush and
+	// Close deliver it. The event is queued before the response body's last Read returns. Cost Events are still
+	// sent directly. The buffer's OnError reports what it does not deliver.
+	Buffer *EventBuffer
 }
 
 type customerContextKey struct{}
@@ -121,9 +126,10 @@ func (t *captureTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 		return resp, nil
 	}
 	reader, writer := io.Pipe()
-	resp.Body = &observedBody{ReadCloser: resp.Body, writer: writer}
+	body := newObservedBody(resp.Body, writer, t.opts.Buffer != nil)
+	resp.Body = body
 	call := capturedCall{customer: customer, feature: feature, model: model, host: req.URL.Host, started: started}
-	go t.observe(reader, stream, call)
+	go t.observe(reader, body.markQueued, stream, call)
 	return resp, nil
 }
 
@@ -169,8 +175,9 @@ type capturedCall struct {
 	started                        time.Time
 }
 
-func (t *captureTransport) observe(reader *io.PipeReader, stream bool, call capturedCall) {
+func (t *captureTransport) observe(reader *io.PipeReader, queued func(), stream bool, call capturedCall) {
 	defer reader.Close()
+	defer queued()
 	var found detectedUsage
 	var ok bool
 	if stream {
@@ -204,9 +211,7 @@ func (t *captureTransport) observe(reader *io.PipeReader, stream bool, call capt
 		model = call.model
 	}
 	p := ProviderCapture{CustomerID: call.customer, FeatureCode: t.opts.FeatureCode, Feature: call.feature, CostMeterCode: t.opts.CostMeterCode, Model: model, RequestID: found.id, ProviderHost: call.host, Latency: time.Since(call.started)}
-	if err := t.nozle.captureProvider(ctx, found.format, p, found.input, found.output, found.categories); err != nil && t.opts.OnError != nil {
-		t.opts.OnError(err)
-	}
+	reportCaptureError(t.opts.OnError, t.nozle.captureProvider(ctx, t.opts.Buffer, queued, found.format, p, found.input, found.output, found.categories))
 	t.checkFeatureOnce(ctx, p.FeatureCode)
 }
 

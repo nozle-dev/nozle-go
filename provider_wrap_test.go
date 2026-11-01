@@ -281,3 +281,35 @@ func TestWrappedTelemetryFailurePreservesProviderResponse(t *testing.T) {
 		t.Fatal("telemetry failure not reported")
 	}
 }
+
+func TestWrapAnthropicHTTPClientQueuesUsageInTheBuffer(t *testing.T) {
+	b := newBatchServer(t, nil)
+	billing := b.client()
+	buf := billing.NewEventBuffer(nozle.EventBufferOptions{FlushInterval: -1})
+	defer buf.Close(context.Background())
+	server := provider(t, "application/json", `{"id":"msg_1","type":"message","model":"claude-x","usage":{"input_tokens":4,"output_tokens":6}}`, nil)
+	results := make(chan error, 1)
+	client, err := nozle.WrapAnthropicHTTPClient(nil, billing, nozle.ProviderWrapOptions{CustomerID: "cust_2", Buffer: buf, OnResult: func(err error) { results <- err }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := client.Post(server.URL+"/v1/messages", "application/json", bytes.NewBufferString(`{"model":"claude-x"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _ = io.Copy(io.Discard, resp.Body)
+	_ = resp.Body.Close()
+	if buf.Len() != 1 || len(b.requestsSoFar()) != 0 {
+		t.Fatalf("queued %d, sent %d requests before Flush", buf.Len(), len(b.requestsSoFar()))
+	}
+	if err := buf.Flush(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	sent := b.requestsSoFar()
+	if len(sent) != 1 || len(sent[0]) != 1 || sent[0][0].TransactionID != "llm-anthropic-msg_1" || sent[0][0].Properties["output_tokens"] != float64(6) {
+		t.Fatalf("sent %v", sent)
+	}
+	if err := <-results; err != nil {
+		t.Fatalf("OnResult: %v", err)
+	}
+}

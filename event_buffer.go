@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"sync"
 	"time"
 )
@@ -40,7 +40,8 @@ type EventBufferOptions struct {
 	// 60 s, and resume at once after a flush without failures. Flush and Close do not wait for the pause.
 	MaxAttempts int
 	// OnError receives every event the buffer does not deliver, with an *EventBufferError whose Code is
-	// "buffer_full", "rejected", "failed" or "closed". Without it the buffer logs through the standard log package.
+	// "buffer_full", "rejected", "failed" or "closed". Without it the buffer logs one slog.Default() error record per
+	// report, with the code, the event count and the error message (no events, no API key).
 	// It runs on the caller's goroutine for buffer_full and closed, and on the buffer's goroutine otherwise.
 	OnError func(err error, events []TrackParams)
 }
@@ -131,7 +132,7 @@ func (c *Client) NewEventBuffer(opts EventBufferOptions) *EventBuffer {
 		panic("nozle: EventBufferOptions.MaxQueueSize and MaxAttempts must be positive")
 	}
 	if b.onError == nil {
-		b.onError = func(err error, events []TrackParams) { log.Printf("[nozle] %v (%d events)", err, len(events)) }
+		b.onError = func(err error, events []TrackParams) { logUndelivered(err, len(events)) }
 	}
 	b.sendCtx, b.cancelSend = context.WithCancelCause(context.Background())
 	go b.run()
@@ -395,4 +396,27 @@ func (b *EventBuffer) dropQueued() {
 		params[i] = e.params
 	}
 	b.onError(&EventBufferError{Code: "failed", Err: err}, params)
+}
+
+// logUndelivered is the default OnError: one slog.Default() record with the code, the count and the error message,
+// never the events or the API key.
+func logUndelivered(err error, count int) {
+	code := "failed"
+	var bufErr *EventBufferError
+	if errors.As(err, &bufErr) {
+		code = bufErr.Code
+	}
+	slog.Default().Error("nozle: events not delivered", "code", code, "count", count, "error", err.Error())
+}
+
+// reportCaptureError passes a usage capture error to onError, or logs it when onError is nil. An error the event
+// buffer refused the event with is skipped: the buffer's OnError already had it.
+func reportCaptureError(onError func(error), err error) {
+	switch {
+	case err == nil || errors.Is(err, ErrBufferFull) || errors.Is(err, ErrBufferClosed):
+	case onError != nil:
+		onError(err)
+	default:
+		logUndelivered(err, 1)
+	}
 }

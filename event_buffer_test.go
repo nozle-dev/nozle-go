@@ -1,11 +1,10 @@
 package nozle_test
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -349,15 +348,64 @@ func TestEventBufferValidatesAndLogsByDefault(t *testing.T) {
 	if err := buf.Track(nozle.TrackParams{CustomerID: "c1", Event: "api_call", Timestamp: "yesterday"}); !errors.As(err, &invalid) {
 		t.Fatalf("bad timestamp: %v", err)
 	}
-	var out bytes.Buffer
-	previous := log.Writer()
-	log.SetOutput(&out)
+	logs := captureSlog(t)
 	buf.Track(event(0))
 	buf.Track(event(1))
-	log.SetOutput(previous)
-	if !strings.Contains(out.String(), "[nozle] nozle: event buffer: buffer_full") {
-		t.Fatalf("logged %q", out.String())
+	got := logs.all()
+	if len(got) != 1 || got[0]["code"] != "buffer_full" || got[0]["count"] != "1" || !strings.Contains(got[0]["error"], "buffer is full") {
+		t.Fatalf("logged %v", got)
 	}
+	for key, value := range got[0] {
+		if key != "msg" && key != "level" && key != "code" && key != "count" && key != "error" || strings.Contains(value, "sk_test") {
+			t.Fatalf("log record carries %s=%q", key, value)
+		}
+	}
+
+	var r reported
+	custom := b.client().NewEventBuffer(nozle.EventBufferOptions{MaxQueueSize: 1, FlushInterval: -1, OnError: r.onError})
+	defer custom.Close(context.Background())
+	custom.Track(event(2))
+	custom.Track(event(3))
+	if len(r.all()) != 1 || len(logs.all()) != 1 {
+		t.Fatalf("OnError got %d reports, slog %d records", len(r.all()), len(logs.all()))
+	}
+}
+
+// slogRecorder is a slog.Handler that keeps each record's message, level and attributes as strings.
+type slogRecorder struct {
+	mu      sync.Mutex
+	records []map[string]string
+}
+
+// captureSlog routes slog.Default() to a recorder until the test ends.
+func captureSlog(t *testing.T) *slogRecorder {
+	r := &slogRecorder{}
+	previous := slog.Default()
+	slog.SetDefault(slog.New(r))
+	t.Cleanup(func() { slog.SetDefault(previous) })
+	return r
+}
+
+func (r *slogRecorder) Enabled(context.Context, slog.Level) bool { return true }
+func (r *slogRecorder) WithAttrs([]slog.Attr) slog.Handler       { return r }
+func (r *slogRecorder) WithGroup(string) slog.Handler            { return r }
+
+func (r *slogRecorder) Handle(_ context.Context, rec slog.Record) error {
+	fields := map[string]string{"msg": rec.Message, "level": rec.Level.String()}
+	rec.Attrs(func(a slog.Attr) bool {
+		fields[a.Key] = a.Value.String()
+		return true
+	})
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.records = append(r.records, fields)
+	return nil
+}
+
+func (r *slogRecorder) all() []map[string]string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]map[string]string(nil), r.records...)
 }
 
 func TestEventBufferRejectsOutOfRangeOptions(t *testing.T) {
