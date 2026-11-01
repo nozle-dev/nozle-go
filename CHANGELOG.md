@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.34.0] - 2026-11-01
+
+Needs a Core with customer tax data (NLD-12).
+
+### Added
+
+- `Customer` carries `CustomerType`, `LegalName`, `Address`, `ShippingAddress` and `TaxID` (`*CustomerTaxID{Type, Value}`); `UpsertCustomer` sends them as Core's flat keys. `ClearTaxID` sends `tax_identification_number: null`. Core validates the format; the SDK only refuses a `TaxID` that has a type but no value. A decoded `Customer` can still be sent back unchanged.
+- Results carry `TaxIdentificationStatus`, `TaxTreatment` and `TaxIdentificationWarnings`.
+- `Client.GetCustomer(ctx, externalID)` and `Client.WaitForTaxCheck(ctx, externalID, WaitForTaxCheckOptions{})`, which polls until the VIES check is no longer `pending` (default 10 s; `ErrTaxCheckPending` on timeout). Call it before a checkout.
+- `Invoice` reads `TaxStatus`, `TaxTreatment` and `TaxDetails`.
+- The codes `CodeValueIsInvalid`, `CodeValueIsMandatory`, `CodeInvalidFormat`, `CodeCustomerTaxLocationRequired` (422) and `CodeCustomerTaxCheckPending` (409) for `APIError.HasCode`; `APIError.RetryAfterSeconds()` returns `retry_after_seconds`.
+- Types `TaxIDType` (Stripe's list, as constants; any other string still decodes), `TaxIDStatus`, `TaxTreatment`, `CustomerAddress`, `CustomerTaxID`, `InvoiceTaxDetails`.
+
 ## [0.33.0] - 2026-11-01
 
 Usage events carry the token breakdown, and a stream that ends early is recorded (NLD-3). Needs a Core that accepts the `cache_write_1h` token type before a catalog price for it can exist.

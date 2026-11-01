@@ -275,6 +275,20 @@ _, err = client.UpsertCustomer(ctx, nozle.Customer{
 })
 ```
 
+Tax data goes in `CustomerType`, `LegalName`, `Address`, `ShippingAddress` and `TaxID`. Core validates the format (`errors.As` an `*nozle.APIError`, then `HasCode(nozle.CodeInvalidFormat)`); `ClearTaxID: true` removes a stored tax ID. A VIES check can leave `TaxIdentificationStatus` at `pending`, so wait before a checkout:
+
+```go
+_, err = client.UpsertCustomer(ctx, nozle.Customer{
+    ExternalID: "customer-123", CustomerType: "company",
+    Address: &nozle.CustomerAddress{Line1: "Main St 1", City: "Berlin", PostalCode: "10115", Country: "DE"},
+    TaxID:   &nozle.CustomerTaxID{Type: nozle.TaxIDTypeEuVat, Value: "DE811128135"},
+})
+customer, err := client.WaitForTaxCheck(ctx, "customer-123", nozle.WaitForTaxCheckOptions{}) // 10 s by default
+_ = customer.TaxTreatment // TaxTreatmentReverseCharge, TaxTreatmentStandard, ...
+```
+
+A checkout refuses with `CodeCustomerTaxLocationRequired` (422) or `CodeCustomerTaxCheckPending` (409, `APIError.RetryAfterSeconds()`).
+
 `GetEntity`, `ActivateEntity`, `SuspendEntity`, and `BulkUpsertEntities` are also available. Entity IDs are limited to 255 UTF-8 bytes. List limits are 1–100; bulk upserts accept 1–500 unique Entity IDs.
 
 Each Entity can have its own subscription. `EnsureEntitySubscription`, `GetEntitySubscription`, and `ListEntitySubscriptions` manage identity and reads. `CheckoutEntitySubscription` and `ChangeEntitySubscriptionPlan` create a payment or plan transition for one Entity. `CheckoutEntitySubscriptions` groups up to 100 Entity plans in one checkout; `CancelEntitySubscription` and `RemoveEntitySubscription` manage its lifecycle.

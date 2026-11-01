@@ -132,6 +132,13 @@ func (e *APIError) BatchErrors() map[int]any {
 	return out
 }
 
+// RetryAfterSeconds is the body's retry_after_seconds (a 409 customer_tax_check_pending), or 0 when Core sent none.
+func (e *APIError) RetryAfterSeconds() float64 {
+	details, _ := e.Details.(map[string]any)
+	seconds, _ := details["retry_after_seconds"].(float64)
+	return seconds
+}
+
 // Code returns the top-level error code of the response, for example
 // "payment_provider_required" or "validation_errors". It is empty when the
 // response had none.

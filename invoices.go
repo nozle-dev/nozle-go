@@ -21,7 +21,12 @@ type Invoice struct {
 	TaxesAmountCents int64   `json:"taxes_amount_cents"`
 	TotalAmountCents int64   `json:"total_amount_cents"`
 	FileURL          *string `json:"file_url"`
-	Customer         *struct {
+	// From Cores with customer tax data. TaxStatus is "pending", "succeeded" or "failed"; TaxDetails is nil on
+	// invoices finalized before customer tax data existed.
+	TaxStatus    string             `json:"tax_status"`
+	TaxTreatment TaxTreatment       `json:"tax_treatment"`
+	TaxDetails   *InvoiceTaxDetails `json:"tax_details"`
+	Customer     *struct {
 		ExternalID string `json:"external_id"`
 	} `json:"customer"`
 }
