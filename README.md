@@ -517,7 +517,7 @@ err := client.CaptureOpenAIUsage(ctx, nozle.ProviderCapture{
 if err != nil { return err }
 ```
 
-`CaptureAnthropicUsage` takes `AnthropicUsage` with input, cached input, cache write, and output token counts. OpenAI categories are input, cached input, output, and reasoning. Negative counts are clamped to zero. Manual capture methods return telemetry errors to the caller; if one Cost Event category fails, the others are still attempted. Use a stable transaction ID and your queue when delivery must be durable. The SDK does not retry telemetry automatically.
+`CaptureAnthropicUsage` takes `AnthropicUsage` with input, cached input, cache write, and output token counts. OpenAI categories are input, cached input, cache write, audio input, output, reasoning, and audio output; Anthropic adds a 1 hour cache write (`cache_write_1h`); Gemini adds audio and image modalities. Categories are disjoint (each token is in one), a part above what is left of its total is clamped, and a `ServiceTier` of `batch` prices text input and output as `batch_input` and `batch_output`. Cost Event IDs are `<transaction_id>:<type>`, and the usage event carries the breakdowns (`cached_input_tokens`, `reasoning_tokens`, ...) and `usage_source`. A stream that ends early is recorded with `stream_aborted: true`; tokens the provider did not report are estimated as delivered bytes / 4 (`usage_source: "estimated"`). Negative counts are clamped to zero. Manual capture methods return telemetry errors to the caller; if one Cost Event category fails, the others are still attempted. Use a stable transaction ID and your queue when delivery must be durable. The SDK does not retry telemetry automatically.
 
 ## Margin reporting
 
