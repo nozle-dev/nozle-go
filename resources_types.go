@@ -16,6 +16,7 @@ type Customer struct {
 	LegalName            string
 	Address              *CustomerAddress
 	ShippingAddress      *CustomerAddress
+	TaxExempt            *bool // exempt the customer from tax; nil leaves it unchanged
 	TaxID                *CustomerTaxID
 	ClearTaxID           bool // send tax_identification_number: null, removing the stored tax ID; ignored when TaxID is set
 	BillingConfiguration *CustomerBillingConfiguration

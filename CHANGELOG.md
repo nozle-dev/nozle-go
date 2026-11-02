@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.35.0] - 2026-11-02
+
+Needs a Core with Stripe Tax (NLD-12 Part B, Core 11.32.0).
+
+### Added
+
+- `Customer.TaxExempt` (`*bool`, nil leaves it unchanged) is sent on `UpsertCustomer` and read from results.
+- `InvoiceTaxDetails` carries `Provider`, `CalculationID`, `TransactionID` and `TaxabilityReasons`.
+- The invoice tax failure codes `CodeCustomerTaxLocationInvalid`, `CodeTaxIDInvalid`, `CodeStripeTaxNotAuthorized`, `CodeStripeAccountRequired` and `CodeTaxProviderUnavailable` for `APIError.HasCode`.
+
 ## [0.34.0] - 2026-11-01
 
 Needs a Core with customer tax data (NLD-12).

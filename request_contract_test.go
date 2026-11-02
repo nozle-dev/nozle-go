@@ -177,10 +177,11 @@ func TestRequestBodiesFitTheAPISchemas(t *testing.T) {
 		},
 		"UpsertCustomer": func() { _, _ = c.UpsertCustomer(ctx, nozle.Customer{ExternalID: "cust"}) },
 		"UpsertCustomerWithTaxData": func() {
+			exempt := true
 			_, _ = c.UpsertCustomer(ctx, nozle.Customer{ExternalID: "cust", CustomerType: "company", LegalName: "Acme GmbH",
 				Address:         &nozle.CustomerAddress{Line1: "Main St 1", City: "Berlin", PostalCode: "10115", Country: "DE"},
 				ShippingAddress: &nozle.CustomerAddress{Line1: "Dock 2", Country: "DE"},
-				TaxID:           &nozle.CustomerTaxID{Type: nozle.TaxIDTypeEuVat, Value: "DE811128135"}})
+				TaxID:           &nozle.CustomerTaxID{Type: nozle.TaxIDTypeEuVat, Value: "DE811128135"}, TaxExempt: &exempt})
 		},
 		"Subscribe": func() { _, _ = c.Subscribe(ctx, nozle.SubscribeParams{CustomerID: "cust", PlanCode: "pro"}) },
 		"SubscribeToAPlanVersion": func() {
