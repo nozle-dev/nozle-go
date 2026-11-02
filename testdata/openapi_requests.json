@@ -60,6 +60,7 @@
  "DELETE /core/api/v1/plans/{code}/metadata": null,
  "DELETE /core/api/v1/plans/{code}/metadata/{key}": null,
  "DELETE /core/api/v1/plans/{plan_code}/transition-policies/{target_plan_code}": null,
+ "DELETE /core/api/v1/spend_limits/{id}": null,
  "DELETE /core/api/v1/subscriptions/{external_id}": null,
  "DELETE /core/api/v1/subscriptions/{external_id}/alerts": null,
  "DELETE /core/api/v1/subscriptions/{external_id}/alerts/{code}": null,
@@ -72,7 +73,6 @@
  "DELETE /core/api/v1/wallets/{id}/metadata/{key}": null,
  "DELETE /core/api/v1/webhook_endpoints/{id}": null,
  "DELETE /engine/api/v1/cost-models/{id}": null,
- "DELETE /engine/api/v1/customers/{customer_id}/entities/{entity_id}": null,
  "DELETE /engine/api/v1/subscriptions/{id}": null,
  "PATCH /core/api/v1/credit_notes/{id}/metadata": {
   "properties": {
@@ -137,7 +137,7 @@
    }
   },
   "required": [
-   "Entitlements"
+   "entitlements"
   ],
   "type": "object"
  },
@@ -256,7 +256,7 @@
    }
   },
   "required": [
-   "Entitlements"
+   "entitlements"
   ],
   "type": "object"
  },
@@ -448,6 +448,12 @@
      "name": {
       "type": "string"
      },
+     "provider_tax_code": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
      "tax_codes": {
       "items": {
        "type": "string"
@@ -460,36 +466,6 @@
   },
   "required": [
    "add_on"
-  ],
-  "type": "object"
- },
- "POST /core/api/v1/admin/cost-intelligence/replay-projection": {
-  "properties": {
-   "ledger_entry_id": {
-    "type": "string"
-   }
-  },
-  "required": [
-   "ledger_entry_id"
-  ],
-  "type": "object"
- },
- "POST /core/api/v1/admin/cost-intelligence/replay-source": {
-  "properties": {
-   "source_external_id": {
-    "type": "string"
-   },
-   "source_type": {
-    "enum": [
-     "feature_event",
-     "cost_event"
-    ],
-    "type": "string"
-   }
-  },
-  "required": [
-   "source_type",
-   "source_external_id"
   ],
   "type": "object"
  },
@@ -999,6 +975,9 @@
       ],
       "type": "string"
      },
+     "customer_location_required": {
+      "type": "boolean"
+     },
      "default_currency": {
       "enum": [
        "AED",
@@ -1165,7 +1144,9 @@
       "items": {
        "enum": [
         "invoice.finalized",
-        "credit_note.created"
+        "credit_note.created",
+        "subscription.price_change_scheduled",
+        "dunning.step"
        ],
        "type": "string"
       },
@@ -1201,6 +1182,12 @@
      "net_payment_term": {
       "type": "integer"
      },
+     "provider_tax_code": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
      "state": {
       "type": [
        "string",
@@ -1212,6 +1199,13 @@
        "string",
        "null"
       ]
+     },
+     "tax_provider": {
+      "enum": [
+       "nozle",
+       "stripe_tax"
+      ],
+      "type": "string"
      },
      "timezone": {
       "enum": [
@@ -1369,28 +1363,6 @@
   },
   "required": [
    "billing_entity"
-  ],
-  "type": "object"
- },
- "POST /core/api/v1/cost-intelligence/shared-costs/{id}/allocate": {
-  "properties": {
-   "allocation_period_start": {
-    "type": "string"
-   }
-  },
-  "required": [
-   "allocation_period_start"
-  ],
-  "type": "object"
- },
- "POST /core/api/v1/cost-intelligence/shared-costs/{id}/preview": {
-  "properties": {
-   "allocation_period_start": {
-    "type": "string"
-   }
-  },
-  "required": [
-   "allocation_period_start"
   ],
   "type": "object"
  },
@@ -1812,24 +1784,44 @@
      "billing_configuration": {
       "properties": {
        "document_locale": {
-        "type": "string"
+        "type": [
+         "string",
+         "null"
+        ]
        },
        "invoice_grace_period": {
-        "type": "integer"
+        "type": [
+         "integer",
+         "null"
+        ]
        },
        "payment_provider": {
         "enum": [
          "stripe",
+         "razorpay",
          "adyen",
-         "gocardless"
+         "gocardless",
+         "cashfree",
+         "flutterwave",
+         "moneyhash",
+         null
         ],
-        "type": "string"
+        "type": [
+         "string",
+         "null"
+        ]
        },
        "payment_provider_code": {
-        "type": "string"
+        "type": [
+         "string",
+         "null"
+        ]
        },
        "provider_customer_id": {
-        "type": "string"
+        "type": [
+         "string",
+         "null"
+        ]
        },
        "provider_payment_methods": {
         "items": {
@@ -2310,7 +2302,6 @@
      "finalize_zero_amount_invoice": {
       "enum": [
        "inherit",
-       "skip",
        "finalize"
       ],
       "type": "string"
@@ -2728,23 +2719,17 @@
       },
       "type": "array"
      },
+     "tax_exempt": {
+      "type": "boolean"
+     },
      "tax_identification_number": {
       "type": [
        "string",
        "null"
       ]
      },
-     "tax_exempt": {
-      "type": [
-       "boolean",
-       "null"
-      ]
-     },
      "tax_identification_type": {
-      "type": [
-       "string",
-       "null"
-      ]
+      "type": "string"
      },
      "timezone": {
       "enum": [
@@ -3119,6 +3104,7 @@
   "type": "object"
  },
  "POST /core/api/v1/customers/{external_customer_id}/checkout_url": null,
+ "POST /core/api/v1/customers/{external_customer_id}/tax_identification/recheck": null,
  "POST /core/api/v1/customers/{external_customer_id}/wallets": {
   "properties": {
    "wallet": {
@@ -3380,7 +3366,10 @@
      "payment_method": {
       "properties": {
        "payment_method_id": {
-        "type": "string"
+        "type": [
+         "string",
+         "null"
+        ]
        },
        "payment_method_type": {
         "enum": [
@@ -3465,7 +3454,10 @@
         "payment_method": {
          "properties": {
           "payment_method_id": {
-           "type": "string"
+           "type": [
+            "string",
+            "null"
+           ]
           },
           "payment_method_type": {
            "enum": [
@@ -3748,7 +3740,7 @@
      }
     },
     "required": [
-     "Alerts"
+     "alerts"
     ],
     "type": "object"
    }
@@ -3813,7 +3805,7 @@
    }
   },
   "required": [
-   "Events"
+   "events"
   ],
   "type": "object"
  },
@@ -4323,7 +4315,10 @@
      "payment_method": {
       "properties": {
        "payment_method_id": {
-        "type": "string"
+        "type": [
+         "string",
+         "null"
+        ]
        },
        "payment_method_type": {
         "enum": [
@@ -4338,7 +4333,7 @@
     },
     "required": [
      "external_customer_id",
-     "Fees"
+     "fees"
     ],
     "type": "object"
    }
@@ -5442,14 +5437,24 @@
  },
  "POST /core/api/v1/invoices/{id}/download": null,
  "POST /core/api/v1/invoices/{id}/lose_dispute": null,
- "POST /core/api/v1/invoices/{id}/payment_url": null,
+ "POST /core/api/v1/invoices/{id}/payment_url": {
+  "properties": {
+   "return_url": {
+    "type": "string"
+   }
+  },
+  "type": "object"
+ },
  "POST /core/api/v1/invoices/{id}/retry": null,
  "POST /core/api/v1/invoices/{id}/retry_payment": {
   "properties": {
    "payment_method": {
     "properties": {
      "payment_method_id": {
-      "type": "string"
+      "type": [
+       "string",
+       "null"
+      ]
      },
      "payment_method_type": {
       "enum": [
@@ -5498,7 +5503,10 @@
      "payment_method": {
       "properties": {
        "payment_method_id": {
-        "type": "string"
+        "type": [
+         "string",
+         "null"
+        ]
        },
        "payment_method_type": {
         "enum": [
@@ -6144,6 +6152,12 @@
        "null"
       ]
      },
+     "dunning_campaign_code": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
      "fixed_charges": {
       "items": {
        "properties": {
@@ -6270,6 +6284,9 @@
        "null"
       ]
      },
+     "limit_grace_days": {
+      "type": "integer"
+     },
      "metadata": {
       "additionalProperties": {
        "type": [
@@ -6314,6 +6331,12 @@
        "null"
       ]
      },
+     "provider_tax_code": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
      "show_on_pricing": {
       "type": "boolean"
      },
@@ -6328,6 +6351,9 @@
        "number",
        "null"
       ]
+     },
+     "unpaid_invoice_grace_days": {
+      "type": "integer"
      },
      "usage_thresholds": {
       "items": {
@@ -6659,6 +6685,12 @@
          "prorated": {
           "type": "boolean"
          },
+         "provider_tax_code": {
+          "type": [
+           "string",
+           "null"
+          ]
+         },
          "regroup_paid_fees": {
           "enum": [
            null,
@@ -6896,7 +6928,7 @@
    }
   },
   "required": [
-   "Entitlements"
+   "entitlements"
   ],
   "type": "object"
  },
@@ -7096,6 +7128,12 @@
          },
          "prorated": {
           "type": "boolean"
+         },
+         "provider_tax_code": {
+          "type": [
+           "string",
+           "null"
+          ]
          }
         },
         "type": "object"
@@ -7139,6 +7177,9 @@
  },
  "POST /core/api/v1/plans/{code}/version-migrations": {
   "properties": {
+   "allow_price_increase": {
+    "type": "boolean"
+   },
    "from_version": {
     "type": "integer"
    },
@@ -7153,6 +7194,9 @@
  },
  "POST /core/api/v1/plans/{code}/version-migrations/preview": {
   "properties": {
+   "allow_price_increase": {
+    "type": "boolean"
+   },
    "from_version": {
     "type": "integer"
    },
@@ -7166,6 +7210,58 @@
   "type": "object"
  },
  "POST /core/api/v1/plans/{code}/version-migrations/{id}/cancel": null,
+ "POST /core/api/v1/spend_limits": {
+  "properties": {
+   "spend_limit": {
+    "properties": {
+     "amount_cents": {
+      "type": [
+       "integer",
+       "null"
+      ]
+     },
+     "currency": {
+      "type": "string"
+     },
+     "external_subscription_id": {
+      "type": "string"
+     },
+     "feature_code": {
+      "type": "string"
+     },
+     "mode": {
+      "enum": [
+       "hard",
+       "soft"
+      ],
+      "type": "string"
+     },
+     "period": {
+      "enum": [
+       "billing_period",
+       "calendar_month",
+       "lifetime"
+      ],
+      "type": "string"
+     },
+     "plan_code": {
+      "type": "string"
+     },
+     "thresholds": {
+      "items": {
+       "type": "integer"
+      },
+      "type": "array"
+     }
+    },
+    "type": "object"
+   }
+  },
+  "required": [
+   "spend_limit"
+  ],
+  "type": "object"
+ },
  "POST /core/api/v1/subscriptions": {
   "properties": {
    "authorization": {
@@ -7218,6 +7314,9 @@
      "consolidate_invoice": {
       "type": "boolean"
      },
+     "currency": {
+      "type": "string"
+     },
      "ending_at": {
       "type": "string"
      },
@@ -7225,6 +7324,16 @@
       "type": "string"
      },
      "external_id": {
+      "type": "string"
+     },
+     "interval": {
+      "enum": [
+       "weekly",
+       "monthly",
+       "quarterly",
+       "semiannual",
+       "yearly"
+      ],
       "type": "string"
      },
      "invoice_custom_section": {
@@ -7247,7 +7356,10 @@
      "payment_method": {
       "properties": {
        "payment_method_id": {
-        "type": "string"
+        "type": [
+         "string",
+         "null"
+        ]
        },
        "payment_method_type": {
         "enum": [
@@ -7260,6 +7372,9 @@
       "type": "object"
      },
      "plan_code": {
+      "type": "string"
+     },
+     "plan_family_code": {
       "type": "string"
      },
      "plan_overrides": {
@@ -7866,7 +7981,6 @@
     },
     "required": [
      "external_customer_id",
-     "plan_code",
      "external_id"
     ],
     "type": "object"
@@ -8064,7 +8178,7 @@
      }
     },
     "required": [
-     "Alerts"
+     "alerts"
     ],
     "type": "object"
    }
@@ -8341,7 +8455,10 @@
      "payment_method": {
       "properties": {
        "payment_method_id": {
-        "type": "string"
+        "type": [
+         "string",
+         "null"
+        ]
        },
        "payment_method_type": {
         "enum": [
@@ -8636,7 +8753,10 @@
      "payment_method": {
       "properties": {
        "payment_method_id": {
-        "type": "string"
+        "type": [
+         "string",
+         "null"
+        ]
        },
        "payment_method_type": {
         "enum": [
@@ -8721,7 +8841,10 @@
         "payment_method": {
          "properties": {
           "payment_method_id": {
-           "type": "string"
+           "type": [
+            "string",
+            "null"
+           ]
           },
           "payment_method_type": {
            "enum": [
@@ -8841,12 +8964,100 @@
   "properties": {
    "webhook_endpoint": {
     "properties": {
-     "signature_algo": {
-      "enum": [
-       "jwt",
-       "hmac",
-       null
-      ],
+     "event_types": {
+      "items": {
+       "enum": [
+        "alert.triggered",
+        "budget.threshold_reached",
+        "budget.exceeded",
+        "usage_limit.threshold_reached",
+        "customer.created",
+        "customer.updated",
+        "customer.accounting_provider_created",
+        "customer.accounting_provider_error",
+        "customer.crm_provider_created",
+        "customer.crm_provider_error",
+        "customer.payment_provider_created",
+        "customer.payment_provider_error",
+        "customer.checkout_url_generated",
+        "customer.tax_provider_error",
+        "customer.vies_check",
+        "credit_note.created",
+        "credit_note.generated",
+        "credit_note.refund_failure",
+        "dunning_campaign.finished",
+        "dunning.step",
+        "event.error",
+        "events.errors",
+        "feature.created",
+        "feature.updated",
+        "feature.deleted",
+        "fee.created",
+        "fee.tax_provider_error",
+        "invoice.created",
+        "invoice.one_off_created",
+        "invoice.paid_credit_added",
+        "invoice.generated",
+        "invoice.drafted",
+        "invoice.voided",
+        "invoice.payment_dispute_lost",
+        "invoice.payment_dispute_updated",
+        "invoice.payment_status_updated",
+        "invoice.payment_overdue",
+        "invoice.payment_failure",
+        "invoice.resynced",
+        "integration.provider_error",
+        "order.created",
+        "order.executed",
+        "order.failed",
+        "order_form.created",
+        "order_form.signed",
+        "order_form.expired",
+        "order_form.voided",
+        "payment.succeeded",
+        "payment.requires_action",
+        "payment.scheduled",
+        "payment.schedule_cancelled",
+        "payment_provider.error",
+        "payment_receipt.created",
+        "payment_receipt.generated",
+        "payment_request.created",
+        "payment_request.payment_failure",
+        "payment_request.payment_status_updated",
+        "plan.created",
+        "plan.updated",
+        "plan.version_created",
+        "plan.deleted",
+        "plan_upgrade_intent.needs_review",
+        "quote.created",
+        "quote.approved",
+        "quote.voided",
+        "subscription.canceled",
+        "subscription.incomplete",
+        "subscription.terminated",
+        "subscription.started",
+        "subscription.updated",
+        "subscription.termination_alert",
+        "subscription.trial_ending",
+        "subscription.trial_ended",
+        "subscription.usage_threshold_reached",
+        "credit_top_up_purchase.fulfilled",
+        "wallet.created",
+        "wallet.depleted_ongoing_balance",
+        "wallet.terminated",
+        "wallet.updated",
+        "wallet_transaction.created",
+        "wallet_transaction.updated",
+        "wallet_transaction.payment_failure"
+       ],
+       "type": "string"
+      },
+      "type": [
+       "array",
+       "null"
+      ]
+     },
+     "name": {
       "type": [
        "string",
        "null"
@@ -8864,15 +9075,35 @@
   },
   "type": "object"
  },
+ "POST /core/api/v1/webhook_endpoints/{id}/recover": {
+  "properties": {
+   "since": {
+    "type": "string"
+   }
+  },
+  "required": [
+   "since"
+  ],
+  "type": "object"
+ },
+ "POST /core/api/v1/webhook_endpoints/{id}/rotate_secret": null,
+ "POST /core/api/v1/webhook_endpoints/{id}/test": null,
+ "POST /core/api/v1/webhooks/{id}/retry": null,
  "POST /engine/api/v1/billing/upgrade": {
   "properties": {
    "customer_id": {
+    "type": "string"
+   },
+   "entity_id": {
     "type": "string"
    },
    "organization_id": {
     "type": "string"
    },
    "plan_code": {
+    "type": "string"
+   },
+   "subscription_id": {
     "type": "string"
    }
   },
@@ -8901,10 +9132,23 @@
    "cancel_url": {
     "type": "string"
    },
+   "currency": {
+    "type": "string"
+   },
    "customer_id": {
     "type": "string"
    },
    "external_entity_id": {
+    "type": "string"
+   },
+   "interval": {
+    "enum": [
+     "weekly",
+     "monthly",
+     "quarterly",
+     "semiannual",
+     "yearly"
+    ],
     "type": "string"
    },
    "invoice_id": {
@@ -8914,6 +9158,9 @@
     "type": "string"
    },
    "plan_code": {
+    "type": "string"
+   },
+   "plan_family_code": {
     "type": "string"
    },
    "quote_id": {
@@ -9005,6 +9252,90 @@
   ],
   "type": "object"
  },
+ "POST /engine/api/v1/cost-intelligence/shared-costs/{id}/allocate": {
+  "properties": {
+   "allocation_period_start": {
+    "type": "string"
+   }
+  },
+  "required": [
+   "allocation_period_start"
+  ],
+  "type": "object"
+ },
+ "POST /engine/api/v1/cost-intelligence/shared-costs/{id}/preview": {
+  "properties": {
+   "allocation_period_start": {
+    "type": "string"
+   }
+  },
+  "required": [
+   "allocation_period_start"
+  ],
+  "type": "object"
+ },
+ "POST /engine/api/v1/cost-intelligence/uncosted-models/dismiss": {
+  "properties": {
+   "model": {
+    "type": "string"
+   },
+   "provider": {
+    "type": "string"
+   },
+   "source": {
+    "enum": [
+     "cost_event",
+     "feature_event",
+     "legacy_cost_model"
+    ],
+    "type": "string"
+   },
+   "token_type": {
+    "type": "string"
+   }
+  },
+  "required": [
+   "provider",
+   "model",
+   "token_type",
+   "source"
+  ],
+  "type": "object"
+ },
+ "POST /engine/api/v1/cost-intelligence/uncosted-models/reprocess": {
+  "properties": {
+   "invoiced_periods": {
+    "enum": [
+     "skip",
+     "include"
+    ],
+    "type": "string"
+   },
+   "model": {
+    "type": "string"
+   },
+   "provider": {
+    "type": "string"
+   },
+   "source": {
+    "enum": [
+     "cost_event",
+     "feature_event"
+    ],
+    "type": "string"
+   },
+   "token_type": {
+    "type": "string"
+   }
+  },
+  "required": [
+   "provider",
+   "model",
+   "source"
+  ],
+  "type": "object"
+ },
+ "POST /engine/api/v1/cost-intelligence/uncosted-models/reprocess/{id}/cancel": null,
  "POST /engine/api/v1/cost-models": {
   "properties": {
    "amount_cents": {
@@ -9160,8 +9491,7 @@
       "status": {
        "enum": [
         "active",
-        "suspended",
-        "deleted"
+        "suspended"
        ],
        "type": "string"
       }
@@ -9349,6 +9679,17 @@
   ],
   "type": "object"
  },
+ "POST /engine/api/v1/events/{transaction_id}/void": {
+  "properties": {
+   "reason": {
+    "type": "string"
+   }
+  },
+  "required": [
+   "reason"
+  ],
+  "type": "object"
+ },
  "POST /engine/api/v1/margin/simulate": {
   "additionalProperties": false,
   "properties": {
@@ -9365,6 +9706,65 @@
   ],
   "type": "object"
  },
+ "POST /engine/api/v1/margin/simulations": {
+  "properties": {
+   "changes": {
+    "items": {
+     "properties": {
+      "kind": {
+       "enum": [
+        "price_change_percent",
+        "markup_percent",
+        "cost_change_percent"
+       ],
+       "type": "string"
+      },
+      "scope": {
+       "properties": {
+        "customer_id": {
+         "type": "string"
+        },
+        "feature_code": {
+         "type": "string"
+        },
+        "plan_id": {
+         "type": "string"
+        }
+       },
+       "type": "object"
+      },
+      "value": {
+       "type": "string"
+      }
+     },
+     "required": [
+      "kind",
+      "value"
+     ],
+     "type": "object"
+    },
+    "type": "array"
+   },
+   "currency": {
+    "type": "string"
+   },
+   "from": {
+    "type": "string"
+   },
+   "max_groups": {
+    "type": "integer"
+   },
+   "to": {
+    "type": "string"
+   }
+  },
+  "required": [
+   "from",
+   "to",
+   "changes"
+  ],
+  "type": "object"
+ },
  "POST /engine/api/v1/proxy/anthropic/{providerPath}": {
   "additionalProperties": true,
   "type": "object"
@@ -9375,10 +9775,26 @@
  },
  "POST /engine/api/v1/subscribe": {
   "properties": {
+   "currency": {
+    "type": "string"
+   },
    "customer_id": {
     "type": "string"
    },
+   "interval": {
+    "enum": [
+     "weekly",
+     "monthly",
+     "quarterly",
+     "semiannual",
+     "yearly"
+    ],
+    "type": "string"
+   },
    "plan_code": {
+    "type": "string"
+   },
+   "plan_family_code": {
     "type": "string"
    },
    "plan_version": {
@@ -9386,8 +9802,7 @@
    }
   },
   "required": [
-   "customer_id",
-   "plan_code"
+   "customer_id"
   ],
   "type": "object"
  },
@@ -9396,10 +9811,16 @@
    "customer_id": {
     "type": "string"
    },
+   "entity_id": {
+    "type": "string"
+   },
    "organization_id": {
     "type": "string"
    },
    "plan_code": {
+    "type": "string"
+   },
+   "subscription_id": {
     "type": "string"
    }
   },
@@ -9645,6 +10066,81 @@
   ],
   "type": "object"
  },
+ "POST /engine/api/v1/usage/holds": {
+  "additionalProperties": false,
+  "properties": {
+   "credit_system_code": {
+    "type": "string"
+   },
+   "customer_id": {
+    "type": "string"
+   },
+   "entity_id": {
+    "type": "string"
+   },
+   "feature_code": {
+    "type": "string"
+   },
+   "properties": {
+    "additionalProperties": true,
+    "type": "object"
+   },
+   "subscription_id": {
+    "type": "string"
+   },
+   "timestamp": {
+    "allOf": [
+     {
+      "oneOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "string"
+       }
+      ]
+     }
+    ]
+   },
+   "ttl_seconds": {
+    "type": "integer"
+   }
+  },
+  "required": [
+   "customer_id",
+   "feature_code",
+   "timestamp"
+  ],
+  "type": "object"
+ },
+ "POST /engine/api/v1/usage/holds/{hold_id}/finalize": {
+  "additionalProperties": false,
+  "properties": {
+   "properties": {
+    "additionalProperties": true,
+    "type": "object"
+   },
+   "timestamp": {
+    "allOf": [
+     {
+      "oneOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "string"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "required": [
+   "timestamp"
+  ],
+  "type": "object"
+ },
+ "POST /engine/api/v1/usage/holds/{hold_id}/release": null,
  "POST /engine/api/v1/usage/track": {
   "additionalProperties": false,
   "properties": {
@@ -9856,6 +10352,12 @@
      },
      "name": {
       "type": "string"
+     },
+     "provider_tax_code": {
+      "type": [
+       "string",
+       "null"
+      ]
      },
      "tax_codes": {
       "items": {
@@ -10174,6 +10676,9 @@
     ],
     "type": "string"
    },
+   "customer_location_required": {
+    "type": "boolean"
+   },
    "default_currency": {
     "enum": [
      "AED",
@@ -10340,7 +10845,9 @@
     "items": {
      "enum": [
       "invoice.finalized",
-      "credit_note.created"
+      "credit_note.created",
+      "subscription.price_change_scheduled",
+      "dunning.step"
      ],
      "type": "string"
     },
@@ -10382,6 +10889,12 @@
    "net_payment_term": {
     "type": "integer"
    },
+   "provider_tax_code": {
+    "type": [
+     "string",
+     "null"
+    ]
+   },
    "state": {
     "type": [
      "string",
@@ -10399,6 +10912,13 @@
      "string",
      "null"
     ]
+   },
+   "tax_provider": {
+    "enum": [
+     "nozle",
+     "stripe_tax"
+    ],
+    "type": "string"
    },
    "timezone": {
     "enum": [
@@ -10916,7 +11436,10 @@
      "payment_method": {
       "properties": {
        "payment_method_id": {
-        "type": "string"
+        "type": [
+         "string",
+         "null"
+        ]
        },
        "payment_method_type": {
         "enum": [
@@ -10998,7 +11521,10 @@
         "payment_method": {
          "properties": {
           "payment_method_id": {
-           "type": "string"
+           "type": [
+            "string",
+            "null"
+           ]
           },
           "payment_method_type": {
            "enum": [
@@ -11050,11 +11576,11 @@
          "type": "string"
         }
        },
+       "required": [
+        "trigger"
+       ],
        "type": "object"
       },
-      "required": [
-       "trigger"
-      ],
       "type": "array"
      }
     },
@@ -11386,6 +11912,13 @@
      },
      "billing_configuration": {
       "properties": {
+       "billing_alignment": {
+        "enum": [
+         "calendar",
+         "anniversary"
+        ],
+        "type": "string"
+       },
        "document_locale": {
         "type": "string"
        },
@@ -12620,6 +13153,13 @@
      "code": {
       "type": "string"
      },
+     "currency_amounts": {
+      "additionalProperties": {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      "type": "object"
+     },
      "description": {
       "type": [
        "string",
@@ -12628,6 +13168,12 @@
      },
      "disable_version": {
       "type": "boolean"
+     },
+     "dunning_campaign_code": {
+      "type": [
+       "string",
+       "null"
+      ]
      },
      "fixed_charges": {
       "items": {
@@ -12760,6 +13306,9 @@
        "null"
       ]
      },
+     "limit_grace_days": {
+      "type": "integer"
+     },
      "metadata": {
       "additionalProperties": {
        "type": [
@@ -12804,6 +13353,12 @@
        "null"
       ]
      },
+     "provider_tax_code": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
      "show_on_pricing": {
       "type": "boolean"
      },
@@ -12818,6 +13373,9 @@
        "number",
        "null"
       ]
+     },
+     "unpaid_invoice_grace_days": {
+      "type": "integer"
      },
      "usage_thresholds": {
       "items": {
@@ -13140,6 +13698,12 @@
          },
          "prorated": {
           "type": "boolean"
+         },
+         "provider_tax_code": {
+          "type": [
+           "string",
+           "null"
+          ]
          },
          "regroup_paid_fees": {
           "enum": [
@@ -13541,6 +14105,12 @@
          },
          "prorated": {
           "type": "boolean"
+         },
+         "provider_tax_code": {
+          "type": [
+           "string",
+           "null"
+          ]
          }
         },
         "type": "object"
@@ -13634,6 +14204,49 @@
   ],
   "type": "object"
  },
+ "PUT /core/api/v1/spend_limits/{id}": {
+  "properties": {
+   "spend_limit": {
+    "properties": {
+     "amount_cents": {
+      "type": [
+       "integer",
+       "null"
+      ]
+     },
+     "currency": {
+      "type": "string"
+     },
+     "mode": {
+      "enum": [
+       "hard",
+       "soft"
+      ],
+      "type": "string"
+     },
+     "period": {
+      "enum": [
+       "billing_period",
+       "calendar_month",
+       "lifetime"
+      ],
+      "type": "string"
+     },
+     "thresholds": {
+      "items": {
+       "type": "integer"
+      },
+      "type": "array"
+     }
+    },
+    "type": "object"
+   }
+  },
+  "required": [
+   "spend_limit"
+  ],
+  "type": "object"
+ },
  "PUT /core/api/v1/subscriptions/{external_id}": {
   "properties": {
    "status": {
@@ -13700,7 +14313,10 @@
      "payment_method": {
       "properties": {
        "payment_method_id": {
-        "type": "string"
+        "type": [
+         "string",
+         "null"
+        ]
        },
        "payment_method_type": {
         "enum": [
@@ -14309,11 +14925,54 @@
      },
      "subscription_at": {
       "type": "string"
+     },
+     "trial": {
+      "oneOf": [
+       {
+        "properties": {
+         "extend_days": {
+          "type": "integer"
+         }
+        },
+        "required": [
+         "extend_days"
+        ],
+        "type": "object"
+       },
+       {
+        "properties": {
+         "ends_at": {
+          "type": "string"
+         }
+        },
+        "required": [
+         "ends_at"
+        ],
+        "type": "object"
+       },
+       {
+        "properties": {
+         "convert": {
+          "enum": [
+           true
+          ],
+          "type": "boolean"
+         }
+        },
+        "required": [
+         "convert"
+        ],
+        "type": "object"
+       }
+      ],
+      "properties": {
+       "reason": {
+        "type": "string"
+       }
+      },
+      "type": "object"
      }
     },
-    "required": [
-     "ending_at"
-    ],
     "type": "object"
    }
   },
@@ -15258,7 +15917,10 @@
      "payment_method": {
       "properties": {
        "payment_method_id": {
-        "type": "string"
+        "type": [
+         "string",
+         "null"
+        ]
        },
        "payment_method_type": {
         "enum": [
@@ -15340,7 +16002,10 @@
         "payment_method": {
          "properties": {
           "payment_method_id": {
-           "type": "string"
+           "type": [
+            "string",
+            "null"
+           ]
           },
           "payment_method_type": {
            "enum": [
@@ -15392,11 +16057,11 @@
          "type": "string"
         }
        },
+       "required": [
+        "trigger"
+       ],
        "type": "object"
       },
-      "required": [
-       "trigger"
-      ],
       "type": "array"
      }
     },
@@ -15412,12 +16077,103 @@
   "properties": {
    "webhook_endpoint": {
     "properties": {
-     "signature_algo": {
-      "enum": [
-       "jwt",
-       "hmac",
-       null
-      ],
+     "disabled": {
+      "type": "boolean"
+     },
+     "event_types": {
+      "items": {
+       "enum": [
+        "alert.triggered",
+        "budget.threshold_reached",
+        "budget.exceeded",
+        "usage_limit.threshold_reached",
+        "customer.created",
+        "customer.updated",
+        "customer.accounting_provider_created",
+        "customer.accounting_provider_error",
+        "customer.crm_provider_created",
+        "customer.crm_provider_error",
+        "customer.payment_provider_created",
+        "customer.payment_provider_error",
+        "customer.checkout_url_generated",
+        "customer.tax_provider_error",
+        "customer.vies_check",
+        "credit_note.created",
+        "credit_note.generated",
+        "credit_note.refund_failure",
+        "dunning_campaign.finished",
+        "dunning.step",
+        "event.error",
+        "events.errors",
+        "feature.created",
+        "feature.updated",
+        "feature.deleted",
+        "fee.created",
+        "fee.tax_provider_error",
+        "invoice.created",
+        "invoice.one_off_created",
+        "invoice.paid_credit_added",
+        "invoice.generated",
+        "invoice.drafted",
+        "invoice.voided",
+        "invoice.payment_dispute_lost",
+        "invoice.payment_dispute_updated",
+        "invoice.payment_status_updated",
+        "invoice.payment_overdue",
+        "invoice.payment_failure",
+        "invoice.resynced",
+        "integration.provider_error",
+        "order.created",
+        "order.executed",
+        "order.failed",
+        "order_form.created",
+        "order_form.signed",
+        "order_form.expired",
+        "order_form.voided",
+        "payment.succeeded",
+        "payment.requires_action",
+        "payment.scheduled",
+        "payment.schedule_cancelled",
+        "payment_provider.error",
+        "payment_receipt.created",
+        "payment_receipt.generated",
+        "payment_request.created",
+        "payment_request.payment_failure",
+        "payment_request.payment_status_updated",
+        "plan.created",
+        "plan.updated",
+        "plan.version_created",
+        "plan.deleted",
+        "plan_upgrade_intent.needs_review",
+        "quote.created",
+        "quote.approved",
+        "quote.voided",
+        "subscription.canceled",
+        "subscription.incomplete",
+        "subscription.terminated",
+        "subscription.started",
+        "subscription.updated",
+        "subscription.termination_alert",
+        "subscription.trial_ending",
+        "subscription.trial_ended",
+        "subscription.usage_threshold_reached",
+        "credit_top_up_purchase.fulfilled",
+        "wallet.created",
+        "wallet.depleted_ongoing_balance",
+        "wallet.terminated",
+        "wallet.updated",
+        "wallet_transaction.created",
+        "wallet_transaction.updated",
+        "wallet_transaction.payment_failure"
+       ],
+       "type": "string"
+      },
+      "type": [
+       "array",
+       "null"
+      ]
+     },
+     "name": {
       "type": [
        "string",
        "null"
@@ -15427,9 +16183,6 @@
       "type": "string"
      }
     },
-    "required": [
-     "webhook_url"
-    ],
     "type": "object"
    }
   },
@@ -15451,8 +16204,7 @@
    "status": {
     "enum": [
      "active",
-     "suspended",
-     "deleted"
+     "suspended"
     ],
     "type": "string"
    }

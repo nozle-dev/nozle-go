@@ -36,3 +36,4 @@ SharedCostCustomerAllocation
 CreditsBalanceImport
 BillingStateImport
 Budget
+BillingEntityObjectExtended
