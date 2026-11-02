@@ -26,8 +26,9 @@ func TestUpsertCustomerSendsTaxDataAsCoreKeys(t *testing.T) {
 		json.NewDecoder(r.Body).Decode(&body)
 		w.Write([]byte(`{"customer":{"external_id":"c1","address_line1":"Main St 1","country":"DE","tax_identification_number":"DE811128135","tax_identification_type":"eu_vat","tax_identification_status":"pending","tax_treatment":"pending","tax_identification_warnings":["country_mismatch"]}}`))
 	})
+	exempt := true
 	out, err := c.UpsertCustomer(context.Background(), nozle.Customer{
-		ExternalID: "c1", CustomerType: "company", LegalName: "Acme GmbH",
+		TaxExempt: &exempt, ExternalID: "c1", CustomerType: "company", LegalName: "Acme GmbH",
 		Address:         &nozle.CustomerAddress{Line1: "Main St 1", Line2: "Top", City: "Berlin", State: "BE", PostalCode: "10115", Country: "DE"},
 		ShippingAddress: &nozle.CustomerAddress{Line1: "Dock 2", Country: "DE"},
 		TaxID:           &nozle.CustomerTaxID{Type: nozle.TaxIDTypeEuVat, Value: "DE811128135"},
@@ -36,7 +37,7 @@ func TestUpsertCustomerSendsTaxDataAsCoreKeys(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := map[string]any{"customer": map[string]any{
-		"external_id": "c1", "customer_type": "company", "legal_name": "Acme GmbH",
+		"external_id": "c1", "tax_exempt": true, "customer_type": "company", "legal_name": "Acme GmbH",
 		"address_line1": "Main St 1", "address_line2": "Top", "city": "Berlin", "state": "BE", "zipcode": "10115", "country": "DE",
 		"shipping_address":          map[string]any{"address_line1": "Dock 2", "country": "DE"},
 		"tax_identification_number": "DE811128135", "tax_identification_type": "eu_vat",

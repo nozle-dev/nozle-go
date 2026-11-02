@@ -147,6 +147,13 @@ const (
 	CodeInvalidFormat               = "invalid_format"
 	CodeCustomerTaxLocationRequired = "customer_tax_location_required"
 	CodeCustomerTaxCheckPending     = "customer_tax_check_pending"
+
+	// Invoice tax failures (TaxStatus "failed").
+	CodeCustomerTaxLocationInvalid = "customer_tax_location_invalid"
+	CodeTaxIDInvalid               = "tax_id_invalid"
+	CodeStripeTaxNotAuthorized     = "stripe_tax_not_authorized"
+	CodeStripeAccountRequired      = "stripe_account_required"
+	CodeTaxProviderUnavailable     = "tax_provider_unavailable"
 )
 
 // ErrTaxCheckPending is returned by WaitForTaxCheck when the timeout passes with the check still pending. The check
@@ -196,6 +203,7 @@ type customerWire struct {
 	Email        string `json:"email,omitempty"`
 	CustomerType string `json:"customer_type,omitempty"`
 	LegalName    string `json:"legal_name,omitempty"`
+	TaxExempt    *bool  `json:"tax_exempt,omitempty"`
 	addressWire
 	ShippingAddress      *addressWire                  `json:"shipping_address,omitempty"`
 	TaxNumber            json.RawMessage               `json:"tax_identification_number,omitempty"`
@@ -215,7 +223,7 @@ type customerReadWire struct {
 // TaxIdentificationWarnings) are never sent, so a decoded Customer can be sent back unchanged.
 func (c Customer) MarshalJSON() ([]byte, error) {
 	w := customerWire{ExternalID: c.ExternalID, Name: c.Name, Email: c.Email, CustomerType: c.CustomerType,
-		LegalName: c.LegalName, BillingConfiguration: c.BillingConfiguration}
+		LegalName: c.LegalName, TaxExempt: c.TaxExempt, BillingConfiguration: c.BillingConfiguration}
 	if c.Address != nil {
 		w.addressWire = addressWire(*c.Address)
 	}
@@ -245,7 +253,7 @@ func (c *Customer) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	out := Customer{ExternalID: w.ExternalID, Name: w.Name, Email: w.Email, CustomerType: w.CustomerType,
-		LegalName: w.LegalName, BillingConfiguration: w.BillingConfiguration,
+		LegalName: w.LegalName, TaxExempt: w.TaxExempt, BillingConfiguration: w.BillingConfiguration,
 		TaxIdentificationStatus: w.Status, TaxTreatment: w.Treat, TaxIdentificationWarnings: w.Warnings}
 	if out.BillingConfiguration != nil && out.BillingConfiguration.PaymentProvider == "" {
 		out.BillingConfiguration = nil
@@ -325,4 +333,9 @@ type InvoiceTaxDetails struct {
 	TaxIdentificationConsultationNumber *string      `json:"tax_identification_consultation_number"`
 	CustomerCountry                     *string      `json:"customer_country"`
 	SellerTaxIdentificationNumber       *string      `json:"seller_tax_identification_number"`
+	// Set when Stripe Tax computed the tax.
+	Provider          *string  `json:"provider"`
+	CalculationID     *string  `json:"calculation_id"`
+	TransactionID     *string  `json:"transaction_id"`
+	TaxabilityReasons []string `json:"taxability_reasons"`
 }

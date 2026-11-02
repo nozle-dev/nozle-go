@@ -287,6 +287,8 @@ customer, err := client.WaitForTaxCheck(ctx, "customer-123", nozle.WaitForTaxChe
 _ = customer.TaxTreatment // TaxTreatmentReverseCharge, TaxTreatmentStandard, ...
 ```
 
+Set `TaxExempt` (a `*bool`) to exempt a customer from tax. A failed invoice tax (`TaxStatus` `failed`) carries one of `CodeCustomerTaxLocationInvalid`, `CodeTaxIDInvalid`, `CodeStripeTaxNotAuthorized`, `CodeStripeAccountRequired` or `CodeTaxProviderUnavailable`.
+
 A checkout refuses with `CodeCustomerTaxLocationRequired` (422) or `CodeCustomerTaxCheckPending` (409, `APIError.RetryAfterSeconds()`).
 
 `GetEntity`, `ActivateEntity`, `SuspendEntity`, and `BulkUpsertEntities` are also available. Entity IDs are limited to 255 UTF-8 bytes. List limits are 1–100; bulk upserts accept 1–500 unique Entity IDs.
