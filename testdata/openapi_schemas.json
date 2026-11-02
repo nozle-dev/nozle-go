@@ -1,4 +1,57 @@
 {
+  "BillingEntityObjectExtended": {
+    "properties": [
+      "address_line1",
+      "address_line2",
+      "city",
+      "code",
+      "country",
+      "created_at",
+      "customer_location_required",
+      "default_currency",
+      "document_locale",
+      "document_number_prefix",
+      "document_numbering",
+      "email",
+      "email_settings",
+      "eu_tax_management",
+      "finalize_zero_amount_invoice",
+      "invoice_footer",
+      "invoice_grace_period",
+      "is_default",
+      "legal_name",
+      "legal_number",
+      "logo_url",
+      "name",
+      "net_payment_term",
+      "nozle_id",
+      "provider_tax_code",
+      "selected_invoice_custom_sections",
+      "state",
+      "subscription_invoice_issuing_date_adjustment",
+      "subscription_invoice_issuing_date_anchor",
+      "tax_identification_number",
+      "tax_provider",
+      "taxes",
+      "timezone",
+      "updated_at",
+      "zipcode"
+    ],
+    "required": [
+      "code",
+      "created_at",
+      "default_currency",
+      "document_locale",
+      "document_numbering",
+      "finalize_zero_amount_invoice",
+      "invoice_grace_period",
+      "name",
+      "net_payment_term",
+      "nozle_id",
+      "timezone",
+      "updated_at"
+    ]
+  },
   "BillingStateImport": {
     "properties": [
       "dry_run",
@@ -148,7 +201,8 @@
       "shared_costs",
       "summary",
       "to",
-      "uncosted"
+      "uncosted",
+      "uncosted_models"
     ],
     "required": [
       "conflicts",
@@ -624,6 +678,7 @@
       "pending_deletion",
       "plan_family_code",
       "prices",
+      "provider_tax_code",
       "taxes",
       "trial_period",
       "unpaid_invoice_grace_days",

@@ -237,7 +237,7 @@ var repeatableOps = map[string]bool{
 	"track": true, "meter": true, "track_batch": true, "cost_events.track": true, "customers.upsert": true,
 	"usage.check": true, "preview_subscription_transition": true, "preview_subscription_change": true,
 	"invoice_download_url": true, "preview_credit_note": true, "margin.simulate": true,
-	"usage.finalize_hold": true, "usage.release_hold": true, "events.void": true,
+	"billing_entities.update": true, "usage.finalize_hold": true, "usage.release_hold": true, "events.void": true,
 	"cost_intelligence.preview_shared_cost_allocation": true, "cost_intelligence.allocate_shared_cost": true,
 }
 

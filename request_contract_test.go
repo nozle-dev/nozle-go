@@ -221,6 +221,12 @@ func TestRequestBodiesFitTheAPISchemas(t *testing.T) {
 				Reason: nozle.CreditNoteReasonDuplicatedCharge, Description: "Charged twice", Metadata: map[string]string{"ticket": "T-1"},
 			})
 		},
+		"CreateBillingEntity": func() {
+			_, _ = c.CreateBillingEntity(ctx, nozle.BillingEntityParams{Code: "acme_us", Name: "Acme US", Country: "US", DefaultCurrency: "USD",
+				TaxProvider: nozle.TaxProviderStripeTax, ProviderTaxCode: "txcd_10103001"})
+		},
+		// UpdateBillingEntity is not listed: the spec documents a flat PUT body, but Core requires the billing_entity wrapper
+		// (wrap_parameters is off), so the SDK sends the wrapper; billing_entities_test.go covers it.
 		"VoidCreditNote": func() { _, _ = c.VoidCreditNote(ctx, "cn_1") },
 		"ImportCreditBalance": func() {
 			_, _ = c.ImportCreditBalance(ctx, "cust", nozle.CreditBalanceImportParams{

@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.36.0] - 2026-11-02
+
+Needs a Core with Stripe Tax (NLD-12 Part B, Core 11.32.0).
+
+### Added
+
+- `Client.ListBillingEntities`, `GetBillingEntity`, `CreateBillingEntity` and `UpdateBillingEntity` (secret key). `BillingEntity` and `BillingEntityParams` carry the Stripe Tax fields `TaxProvider` (`TaxProviderNozle` or `TaxProviderStripeTax`) and `ProviderTaxCode`; an unknown provider is refused locally. Create is never retried (no idempotency key); update is retried like a read. `CodeStripeAccountRequired` (already present) is what Core answers for `stripe_tax` without a connected Stripe account.
+
 ## [0.35.0] - 2026-11-02
 
 Needs a Core with Stripe Tax (NLD-12 Part B, Core 11.32.0).

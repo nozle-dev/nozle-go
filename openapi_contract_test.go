@@ -63,6 +63,7 @@ func TestResponseStructsMatchTheOpenAPISchemas(t *testing.T) {
 		{SharedCostCustomerAllocation{}, []string{"SharedCostCustomerAllocation"}},
 		{CreditBalanceImport{}, []string{"CreditsBalanceImport"}},
 		{BillingStateImport{}, []string{"BillingStateImport"}},
+		{BillingEntity{}, []string{"BillingEntityObjectExtended"}},
 	}
 	for _, c := range contract {
 		allowed := map[string]bool{}
