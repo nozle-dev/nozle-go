@@ -2,6 +2,8 @@ package nozle
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"net/http"
 	"testing"
 )
@@ -46,5 +48,37 @@ func TestInvoiceDownloadURL(t *testing.T) {
 	}
 	if u, err := c.InvoiceDownloadURL(context.Background(), "inv_2"); err != nil || u != "" {
 		t.Fatalf("generating: %q %v", u, err)
+	}
+}
+
+func TestPayInvoiceWithAgentToken(t *testing.T) {
+	c := usageServer(t, func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]string
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		if r.Method != http.MethodPost || r.URL.Path != "/core/api/v1/invoices/inv_1/pay_with_agent_token" || body["agent_payment_token"] == "" {
+			t.Errorf("wrong request: %s %s %v", r.Method, r.URL.Path, body)
+		}
+		if body["agent_payment_token"] == "spt_ok" {
+			_, _ = w.Write([]byte(`{"invoice":{"nozle_id":"inv_1","payment_status":"succeeded"}}`))
+			return
+		}
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		_, _ = w.Write([]byte(`{"status":422,"error":"Unprocessable Entity","code":"validation_errors","error_details":{"agent_payment_token":["token_expired"]}}`))
+	})
+	ctx := context.Background()
+	inv, err := c.PayInvoiceWithAgentToken(ctx, "inv_1", "spt_ok")
+	if err != nil || inv.PaymentStatus != "succeeded" {
+		t.Fatalf("invoice %+v %v", inv, err)
+	}
+	var api *APIError
+	if _, err = c.PayInvoiceWithAgentToken(ctx, "inv_1", "spt_old"); !errors.As(err, &api) || !api.HasCode(CodeTokenExpired) {
+		t.Fatalf("want token_expired, got %v", err)
+	}
+	var invalid *ValidationError
+	if _, err = c.PayInvoiceWithAgentToken(ctx, "", "spt_ok"); !errors.As(err, &invalid) {
+		t.Fatalf("empty id: %v", err)
+	}
+	if _, err = c.PayInvoiceWithAgentToken(ctx, "inv_1", " "); !errors.As(err, &invalid) {
+		t.Fatalf("empty token: %v", err)
 	}
 }

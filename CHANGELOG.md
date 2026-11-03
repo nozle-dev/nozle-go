@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+Needs a Core with the agent payment token endpoint (NLD-14) and the `stripe_agent_payment_token` workspace flag.
+
+### Added
+
+- `Client.PayInvoiceWithAgentToken` pays a finalized invoice with a Stripe Shared Payment Token an AI agent handed over (secret key, not retried). Refusals are an `*APIError`; the codes `CodeTokenExpired`, `CodeTokenDeactivated`, `CodeCurrencyMismatch` and `CodeAmountExceedsLimit` work with `HasCode`.
+
+### Fixed
+
+- `APIError.Details` no longer redacts `error_details`: a field named like `agent_payment_token` hid its error codes from `HasCode`.
+
 ## [0.36.0] - 2026-11-02
 
 Needs a Core with Stripe Tax (NLD-12 Part B, Core 11.32.0).

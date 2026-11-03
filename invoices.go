@@ -108,6 +108,35 @@ func (c *Client) InvoiceDownloadURL(ctx context.Context, invoiceID string) (stri
 	return *out.Invoice.FileURL, nil
 }
 
+// Codes for APIError.HasCode on PayInvoiceWithAgentToken, besides "invalid_format" (token not an spt_ id),
+// "feature_not_enabled", "invoice_not_payable" and "stripe_required".
+const (
+	CodeTokenExpired       = "token_expired"
+	CodeTokenDeactivated   = "token_deactivated"
+	CodeCurrencyMismatch   = "currency_mismatch"
+	CodeAmountExceedsLimit = "amount_exceeds_limit"
+)
+
+// PayInvoiceWithAgentToken pays a finalized invoice with a Shared Payment Token ("spt_...") an AI agent
+// handed over. Needs a secret key and a workspace with the agent payment token feature on (otherwise a 403
+// "feature_not_enabled"). Returns the invoice; read PaymentStatus, as a charge can still fail or stay
+// pending. A refused token is an *APIError (422): test it with HasCode(CodeTokenExpired) and the others
+// above. Not retried.
+func (c *Client) PayInvoiceWithAgentToken(ctx context.Context, invoiceID, agentPaymentToken string) (Invoice, error) {
+	var out struct {
+		Invoice Invoice `json:"invoice"`
+	}
+	if err := c.invoiceCheck("pay_invoice_with_agent_token", "invoice_id", invoiceID); err != nil {
+		return out.Invoice, err
+	}
+	if err := required("pay_invoice_with_agent_token", "agent_payment_token", agentPaymentToken); err != nil {
+		return out.Invoice, err
+	}
+	body := map[string]string{"agent_payment_token": agentPaymentToken}
+	err := c.request(ctx, "pay_invoice_with_agent_token", http.MethodPost, true, "/api/v1/invoices/"+segment(invoiceID)+"/pay_with_agent_token", body, &out, "")
+	return out.Invoice, err
+}
+
 func (c *Client) invoiceCheck(op, field, value string) error {
 	if err := validateKey(c.apiKey, op); err != nil {
 		return err

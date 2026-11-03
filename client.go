@@ -363,6 +363,10 @@ func redact(v any) any {
 	case map[string]any:
 		for k, y := range x {
 			n := strings.ToLower(strings.ReplaceAll(k, "-", "_"))
+			if n == "error_details" {
+				// Field names mapped to error codes (agent_payment_token: ["token_expired"]): a field name ending in _token or _key is not a secret.
+				continue
+			}
 			if n == "authorization" || n == "api_key" || n == "secret" || n == "razorpay_signature" || strings.HasSuffix(n, "_token") || strings.HasSuffix(n, "_secret") || strings.HasSuffix(n, "_key") {
 				x[k] = "[REDACTED]"
 			} else {
