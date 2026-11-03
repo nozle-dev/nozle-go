@@ -4,7 +4,19 @@ All notable changes to the nozle-go SDK will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [0.37.0] - 2026-11-03
+
+Needs a Core with the agent payment token and x402 endpoints (NLD-14) and the `stripe_agent_payment_token` and `stripe_x402_payments` workspace flags.
+
+### Added
+
+- `Client.PayInvoiceWithAgentToken` pays a finalized invoice with a Stripe Shared Payment Token an AI agent handed over (secret key, not retried). Refusals are an `*APIError`; the codes `CodeTokenExpired`, `CodeTokenDeactivated`, `CodeCurrencyMismatch` and `CodeAmountExceedsLimit` work with `HasCode`.
+- `Client.GetInvoiceX402Requirements` returns the x402 (v2) payment requirements (`X402Requirements`) for a finalized USD invoice; safe to retry.
+- `Client.PayInvoiceWithX402` pays a finalized USD invoice with a USDC transaction hash the agent settled on-chain (secret key, not retried). Codes `CodeUSDRequired` and `CodeStripeRequired` work with `HasCode`, as does `invalid_format` for a bad hash.
+
+### Fixed
+
+- `APIError.Details` no longer redacts `error_details`: a field named like `agent_payment_token` hid its error codes from `HasCode`.
 
 ## [0.36.0] - 2026-11-02
 

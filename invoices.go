@@ -108,6 +108,106 @@ func (c *Client) InvoiceDownloadURL(ctx context.Context, invoiceID string) (stri
 	return *out.Invoice.FileURL, nil
 }
 
+// Codes for APIError.HasCode on PayInvoiceWithAgentToken, besides "invalid_format" (token not an spt_ id),
+// "feature_not_enabled", "invoice_not_payable" and "stripe_required".
+const (
+	CodeTokenExpired       = "token_expired"
+	CodeTokenDeactivated   = "token_deactivated"
+	CodeCurrencyMismatch   = "currency_mismatch"
+	CodeAmountExceedsLimit = "amount_exceeds_limit"
+)
+
+// PayInvoiceWithAgentToken pays a finalized invoice with a Shared Payment Token ("spt_...") an AI agent
+// handed over. Needs a secret key and a workspace with the agent payment token feature on (otherwise a 403
+// "feature_not_enabled"). Returns the invoice; read PaymentStatus, as a charge can still fail or stay
+// pending. A refused token is an *APIError (422): test it with HasCode(CodeTokenExpired) and the others
+// above. Not retried.
+func (c *Client) PayInvoiceWithAgentToken(ctx context.Context, invoiceID, agentPaymentToken string) (Invoice, error) {
+	var out struct {
+		Invoice Invoice `json:"invoice"`
+	}
+	if err := c.invoiceCheck("pay_invoice_with_agent_token", "invoice_id", invoiceID); err != nil {
+		return out.Invoice, err
+	}
+	if err := required("pay_invoice_with_agent_token", "agent_payment_token", agentPaymentToken); err != nil {
+		return out.Invoice, err
+	}
+	body := map[string]string{"agent_payment_token": agentPaymentToken}
+	err := c.request(ctx, "pay_invoice_with_agent_token", http.MethodPost, true, "/api/v1/invoices/"+segment(invoiceID)+"/pay_with_agent_token", body, &out, "")
+	return out.Invoice, err
+}
+
+// Codes for APIError.HasCode on GetInvoiceX402Requirements and PayInvoiceWithX402, besides
+// "feature_not_enabled" (403), "invoice_not_payable" (422) and "invalid_format" (transaction hash).
+const (
+	CodeUSDRequired    = "usd_required"
+	CodeStripeRequired = "stripe_required"
+)
+
+// X402Requirements is the x402 (v2) payment requirements for an invoice. Relay it to the paying agent in
+// an HTTP 402 response.
+type X402Requirements struct {
+	X402Version int                 `json:"x402Version"`
+	Accepts     []X402PaymentOption `json:"accepts"`
+	Resource    X402Resource        `json:"resource"`
+}
+
+// X402PaymentOption is one way to pay: Amount is in atomic USDC units (6 decimals) as a string.
+type X402PaymentOption struct {
+	Scheme            string    `json:"scheme"`
+	Network           string    `json:"network"`
+	Amount            string    `json:"amount"`
+	Asset             string    `json:"asset"`
+	PayTo             string    `json:"payTo"`
+	MaxTimeoutSeconds int       `json:"maxTimeoutSeconds"`
+	Extra             X402Extra `json:"extra"`
+}
+
+// X402Extra is the USDC EIP-712 domain the "exact" EVM scheme signs against.
+type X402Extra struct {
+	Name    string `json:"name"`
+	Version string `json:"version"`
+}
+
+// X402Resource describes what is being paid for.
+type X402Resource struct {
+	Description string `json:"description"`
+}
+
+// GetInvoiceX402Requirements returns the x402 payment requirements for a finalized USD invoice on a Stripe
+// workspace with the x402 feature on (otherwise a 403 "feature_not_enabled"). Refusals are an *APIError
+// (422): HasCode(CodeUSDRequired), CodeStripeRequired or "invoice_not_payable". Safe to retry.
+func (c *Client) GetInvoiceX402Requirements(ctx context.Context, invoiceID string) (X402Requirements, error) {
+	var out struct {
+		Requirements X402Requirements `json:"x402_requirements"`
+	}
+	if err := c.invoiceCheck("get_invoice_x402_requirements", "invoice_id", invoiceID); err != nil {
+		return out.Requirements, err
+	}
+	err := c.request(ctx, "get_invoice_x402_requirements", http.MethodGet, true, "/api/v1/invoices/"+segment(invoiceID)+"/x402_requirements", nil, &out, "")
+	return out.Requirements, err
+}
+
+// PayInvoiceWithX402 pays a finalized USD invoice with a USDC payment the agent already settled on-chain to
+// the address from GetInvoiceX402Requirements. transactionHash is the 0x-prefixed 32-byte hash; one
+// transaction pays one invoice once. Returns the invoice; read PaymentStatus, as it is often "processing"
+// first. A refusal is an *APIError: HasCode("invalid_format") for a bad hash, CodeUSDRequired,
+// CodeStripeRequired, "invoice_not_payable". Not retried (moves money).
+func (c *Client) PayInvoiceWithX402(ctx context.Context, invoiceID, transactionHash string) (Invoice, error) {
+	var out struct {
+		Invoice Invoice `json:"invoice"`
+	}
+	if err := c.invoiceCheck("pay_invoice_with_x402", "invoice_id", invoiceID); err != nil {
+		return out.Invoice, err
+	}
+	if err := required("pay_invoice_with_x402", "transaction_hash", transactionHash); err != nil {
+		return out.Invoice, err
+	}
+	body := map[string]string{"transaction_hash": transactionHash}
+	err := c.request(ctx, "pay_invoice_with_x402", http.MethodPost, true, "/api/v1/invoices/"+segment(invoiceID)+"/pay_with_x402", body, &out, "")
+	return out.Invoice, err
+}
+
 func (c *Client) invoiceCheck(op, field, value string) error {
 	if err := validateKey(c.apiKey, op); err != nil {
 		return err
