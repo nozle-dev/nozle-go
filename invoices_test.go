@@ -82,3 +82,55 @@ func TestPayInvoiceWithAgentToken(t *testing.T) {
 		t.Fatalf("empty token: %v", err)
 	}
 }
+
+func TestInvoiceX402(t *testing.T) {
+	posts := 0
+	c := usageServer(t, func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/core/api/v1/invoices/inv_1/x402_requirements":
+			_, _ = w.Write([]byte(`{"x402_requirements":{"x402Version":2,"accepts":[{"scheme":"exact","network":"eip155:8453","amount":"10000000","asset":"0xabc","payTo":"0xdef","maxTimeoutSeconds":300,"extra":{"name":"USD Coin","version":"2"}}],"resource":{"description":"Acme - Invoice 1"}}}`))
+		case "/core/api/v1/invoices/inv_1/pay_with_x402":
+			posts++
+			var body map[string]string
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			if r.Method != http.MethodPost || body["transaction_hash"] == "" {
+				t.Errorf("wrong request: %s %v", r.Method, body)
+			}
+			if body["transaction_hash"] == "0xgood" {
+				_, _ = w.Write([]byte(`{"invoice":{"nozle_id":"inv_1","payment_status":"pending"}}`))
+				return
+			}
+			w.WriteHeader(http.StatusUnprocessableEntity)
+			_, _ = w.Write([]byte(`{"status":422,"error":"Unprocessable Entity","code":"validation_errors","error_details":{"transaction_hash":["invalid_format"]}}`))
+		default:
+			t.Errorf("unexpected path %s", r.URL.Path)
+		}
+	})
+	ctx := context.Background()
+	req, err := c.GetInvoiceX402Requirements(ctx, "inv_1")
+	if err != nil || req.X402Version != 2 || len(req.Accepts) != 1 {
+		t.Fatalf("requirements %+v %v", req, err)
+	}
+	if a := req.Accepts[0]; a.Amount != "10000000" || a.PayTo != "0xdef" || a.MaxTimeoutSeconds != 300 || a.Extra.Name != "USD Coin" || req.Resource.Description != "Acme - Invoice 1" {
+		t.Fatalf("option %+v", a)
+	}
+	inv, err := c.PayInvoiceWithX402(ctx, "inv_1", "0xgood")
+	if err != nil || inv.PaymentStatus != "pending" {
+		t.Fatalf("invoice %+v %v", inv, err)
+	}
+	var api *APIError
+	posts = 0
+	if _, err = c.PayInvoiceWithX402(ctx, "inv_1", "0xbad"); !errors.As(err, &api) || !api.HasCode("invalid_format") {
+		t.Fatalf("want invalid_format, got %v", err)
+	}
+	if posts != 1 {
+		t.Fatalf("money call retried: %d posts", posts)
+	}
+	var invalid *ValidationError
+	if _, err = c.PayInvoiceWithX402(ctx, "inv_1", " "); !errors.As(err, &invalid) {
+		t.Fatalf("empty hash: %v", err)
+	}
+	if _, err = c.GetInvoiceX402Requirements(ctx, ""); !errors.As(err, &invalid) {
+		t.Fatalf("empty id: %v", err)
+	}
+}
