@@ -549,16 +549,14 @@ _, _ = summary, trend
 
 Pass `url.Values` for optional filters. Trend granularity is `hour`, `day`, `week`, or `month`.
 
-`MarginForecast` (typed `MarginForecastResult`) projects the 30 days after the range, and `MarginSimulate` replays one metric's usage at a new unit price. `CostIntelligenceReport`, `PreviewSharedCostAllocation` and `AllocateSharedCost` read the ledger-backed cost report and book Shared Period Costs.
+`MarginSimulate` replays one metric's usage at a new unit price. `CostIntelligenceReport`, `PreviewSharedCostAllocation` and `AllocateSharedCost` read the ledger-backed cost report and book Shared Period Costs.
 
 ```go
-forecast, err := client.MarginForecast(ctx, nil)
-if err != nil { return err }
 sim, err := client.MarginSimulate(ctx, nozle.MarginSimulateParams{MetricCode: "agent_execution", NewPriceDollars: 1}, nil)
 if err != nil { return err }
 report, err := client.CostIntelligenceReport(ctx, nozle.CostIntelligenceReportParams{From: "2026-10-01T00:00:00Z", Limit: 50})
 if err != nil { return err }
-_, _, _ = forecast, sim, report
+_, _ = sim, report
 ```
 
 ## Errors and retries

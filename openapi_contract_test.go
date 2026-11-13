@@ -49,8 +49,6 @@ func TestResponseStructsMatchTheOpenAPISchemas(t *testing.T) {
 		{PlanVersionMigrationItem{}, []string{"PlanVersionMigrationItem"}},
 		{PlanVersionMigrationPreview{}, []string{"PlanVersionMigrationPreview"}},
 		{PlanVersionMigrationPreviewItem{}, []string{"PlanVersionMigrationPreviewItem"}},
-		{MarginForecastResult{}, []string{"MarginForecastResponse"}},
-		{MarginForecastPoint{}, []string{"MarginForecastPoint"}},
 		{MarginSimulation{}, []string{"MarginSimulationResult"}},
 		{CostIntelligenceReportResult{}, []string{"CostIntelligenceReport"}},
 		{CostIntelligenceSummary{}, []string{"CostIntelligenceSummary"}},

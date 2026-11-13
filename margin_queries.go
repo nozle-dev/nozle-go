@@ -41,20 +41,6 @@ func (c *Client) MarginTrend(ctx context.Context, granularity string, q url.Valu
 	return c.marginQuery(ctx, "trend", q)
 }
 
-type MarginForecastPoint struct {
-	Date             string `json:"date"`
-	ProjectedRevenue int64  `json:"projected_revenue"`
-	ProjectedCost    int64  `json:"projected_cost"`
-	ProjectedMargin  int64  `json:"projected_margin"`
-}
-
-// MarginForecastResult projects daily revenue, cost and margin (cents) for the 30 days after the
-// range; Confidence is "low", "medium" or "high".
-type MarginForecastResult struct {
-	Points     []MarginForecastPoint `json:"points"`
-	Confidence string                `json:"confidence"`
-}
-
 type MarginSimulateParams struct {
 	MetricCode      string  `json:"metric_code"`
 	NewPriceDollars float64 `json:"new_price_dollars"` // 0 or more
@@ -72,13 +58,6 @@ type MarginSimulation struct {
 	RevenueDeltaCents   int64  `json:"revenue_delta_cents"`
 	MarginDeltaCents    int64  `json:"margin_delta_cents"`
 	EventCount          int64  `json:"event_count"`
-}
-
-// MarginForecast projects the 30 days after the range in q (default: the last month).
-func (c *Client) MarginForecast(ctx context.Context, q url.Values) (MarginForecastResult, error) {
-	var out MarginForecastResult
-	err := c.request(ctx, "margin.forecast", "GET", false, query("/api/v1/margin/forecast", q), nil, &out, "")
-	return out, err
 }
 
 // MarginSimulate replays one metric's recorded usage in the range q at a new unit price; the
