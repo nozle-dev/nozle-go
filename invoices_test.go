@@ -21,7 +21,7 @@ func TestListAndGetInvoices(t *testing.T) {
 			}
 			_, _ = w.Write([]byte(`{"invoices":[{"nozle_id":"inv_1","number":"INV-1","total_amount_cents":2900}],"meta":{"current_page":2,"total_pages":3}}`))
 		case "/core/api/v1/invoices/inv_1":
-			_, _ = w.Write([]byte(`{"invoice":{"nozle_id":"inv_1","customer":{"external_id":"cus_1"}}}`))
+			_, _ = w.Write([]byte(`{"invoice":{"nozle_id":"inv_1","disputed_amount_cents":1000,"customer":{"external_id":"cus_1"}}}`))
 		}
 	})
 	page, err := c.ListInvoices(context.Background(), "cus_1", ListInvoicesParams{Status: "finalized", PaymentOverdue: &overdue, Page: 2})
@@ -29,7 +29,7 @@ func TestListAndGetInvoices(t *testing.T) {
 		t.Fatalf("page %+v %v", page, err)
 	}
 	inv, err := c.GetInvoice(context.Background(), "inv_1")
-	if err != nil || inv.Customer == nil || inv.Customer.ExternalID != "cus_1" {
+	if err != nil || inv.Customer == nil || inv.Customer.ExternalID != "cus_1" || inv.DisputedAmountCents != 1000 {
 		t.Fatalf("invoice %+v %v", inv, err)
 	}
 }

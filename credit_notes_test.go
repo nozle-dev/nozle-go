@@ -105,6 +105,25 @@ func TestCreateCreditNoteSendsAmountsReasonDescriptionAndMetadata(t *testing.T) 
 	}
 }
 
+func TestCreateCreditNoteSendsAndReadsTheOutOfBandRefund(t *testing.T) {
+	c, _, bodies := creditNoteServer(t, map[string]func(http.ResponseWriter, map[string]any){"POST " + cnBase: reply(200,
+		`{"credit_note":{"nozle_id":"cn_1","refund_amount_cents":500,"refund_status":"succeeded","out_of_band_refund_amount_cents":300,`+
+			`"out_of_band_refund_reference":"wire 42","out_of_band_refunded_at":"2026-11-14T10:00:00Z"}}`)})
+	note, err := c.CreateCreditNote(context.Background(), CreateCreditNoteParams{
+		InvoiceID: "inv_1", Items: cnItems, RefundAmountCents: 500, OutOfBandRefundAmountCents: 300,
+		OutOfBandRefundReference: "wire 42", OutOfBandRefundedAt: "2026-11-14T10:00:00Z",
+	})
+	if err != nil || note.OutOfBandRefundAmountCents != 300 || note.OutOfBandRefundReference == nil || *note.OutOfBandRefundReference != "wire 42" ||
+		note.OutOfBandRefundedAt == nil || *note.OutOfBandRefundedAt != "2026-11-14T10:00:00Z" {
+		t.Fatalf("%+v %v", note, err)
+	}
+	got, _ := json.Marshal((*bodies)[0])
+	want := `{"credit_note":{"invoice_id":"inv_1","items":[{"amount_cents":500,"fee_id":"fee_1"}],"out_of_band_refund_amount_cents":300,"out_of_band_refund_reference":"wire 42","out_of_band_refunded_at":"2026-11-14T10:00:00Z","refund_amount_cents":500}}`
+	if string(got) != want {
+		t.Fatalf("body %s", got)
+	}
+}
+
 func TestCreateAndVoidAreNeverRetried(t *testing.T) {
 	c, calls, _ := creditNoteServer(t, map[string]func(http.ResponseWriter, map[string]any){
 		"POST " + cnBase:               reply(503, `{}`),
@@ -207,7 +226,7 @@ func TestListCreditNotesQueryAndNoFilters(t *testing.T) {
 
 func TestCreditNoteErrorsCarryStatusAndCodes(t *testing.T) {
 	c, _, _ := creditNoteServer(t, map[string]func(http.ResponseWriter, map[string]any){
-		"POST " + cnBase:               reply(422, `{"status":422,"error":"Unprocessable Entity","code":"validation_errors","error_details":{"refund_amount_cents":["higher_than_remaining_invoice_amount"]}}`),
+		"POST " + cnBase:               reply(422, `{"status":422,"error":"Unprocessable Entity","code":"validation_errors","error_details":{"refund_amount_cents":["higher_than_remaining_invoice_amount","manual_refund_required"]}}`),
 		"POST " + cnBase + "/estimate": reply(422, `{"status":422,"error":"Unprocessable Entity","code":"invalid_type_or_status"}`),
 		"PUT " + cnBase + "/cn_1/void": reply(422, `{"status":422,"code":"no_voidable_amount"}`),
 		"GET " + cnBase + "/cn_x":      reply(404, `{"status":404,"error":"Not Found","code":"credit_note_not_found"}`),
@@ -223,6 +242,7 @@ func TestCreditNoteErrorsCarryStatusAndCodes(t *testing.T) {
 	}
 	_, err := c.CreateCreditNote(ctx, CreateCreditNoteParams{InvoiceID: "inv_1", Items: cnItems, RefundAmountCents: 9})
 	check(err, 422, CodeHigherThanRemainingInvoiceAmount)
+	check(err, 422, CodeManualRefundRequired)
 	_, err = c.PreviewCreditNote(ctx, PreviewCreditNoteParams{InvoiceID: "inv_1", Items: cnItems})
 	check(err, 422, CodeInvalidTypeOrStatus)
 	_, err = c.VoidCreditNote(ctx, "cn_1")
@@ -262,6 +282,14 @@ func TestCreditNoteInputIsCheckedBeforeAnyRequest(t *testing.T) {
 		},
 		"negative refund": func() error {
 			_, err := c.CreateCreditNote(ctx, CreateCreditNoteParams{InvoiceID: "inv_1", Items: cnItems, RefundAmountCents: -1, CreditAmountCents: 9})
+			return err
+		},
+		"negative out of band": func() error {
+			_, err := c.CreateCreditNote(ctx, CreateCreditNoteParams{InvoiceID: "inv_1", Items: cnItems, RefundAmountCents: 9, OutOfBandRefundAmountCents: -1})
+			return err
+		},
+		"out of band above refund": func() error {
+			_, err := c.CreateCreditNote(ctx, CreateCreditNoteParams{InvoiceID: "inv_1", Items: cnItems, RefundAmountCents: 9, OutOfBandRefundAmountCents: 10})
 			return err
 		},
 		"reason": func() error {

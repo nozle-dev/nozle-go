@@ -218,6 +218,7 @@ func TestRequestBodiesFitTheAPISchemas(t *testing.T) {
 		"CreateCreditNote": func() {
 			_, _ = c.CreateCreditNote(ctx, nozle.CreateCreditNoteParams{
 				InvoiceID: "inv_1", Items: []nozle.CreditNoteItem{{FeeID: "fee_1", AmountCents: 500}}, RefundAmountCents: 500,
+				OutOfBandRefundAmountCents: 200, OutOfBandRefundReference: "wire 42", OutOfBandRefundedAt: "2026-11-14T10:00:00Z",
 				Reason: nozle.CreditNoteReasonDuplicatedCharge, Description: "Charged twice", Metadata: map[string]string{"ticket": "T-1"},
 			})
 		},
