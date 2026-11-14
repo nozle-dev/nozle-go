@@ -20,7 +20,10 @@ type Invoice struct {
 	FeesAmountCents  int64   `json:"fees_amount_cents"`
 	TaxesAmountCents int64   `json:"taxes_amount_cents"`
 	TotalAmountCents int64   `json:"total_amount_cents"`
-	FileURL          *string `json:"file_url"`
+	// DisputedAmountCents is what lost payment disputes took back from the invoice's payments (Core 11.45.0),
+	// 0 without a lost dispute.
+	DisputedAmountCents int64   `json:"disputed_amount_cents"`
+	FileURL             *string `json:"file_url"`
 	// From Cores with customer tax data. TaxStatus is "pending", "succeeded" or "failed"; TaxDetails is nil on
 	// invoices finalized before customer tax data existed.
 	TaxStatus    string             `json:"tax_status"`

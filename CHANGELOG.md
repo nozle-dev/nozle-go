@@ -4,6 +4,17 @@ All notable changes to the nozle-go SDK will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.39.0] - 2026-11-14
+
+Matches Core 11.45.0 to 11.46.1 (lost disputes, out-of-band refunds). Older Cores leave the new fields at their zero value.
+
+### Added
+
+- `Invoice.DisputedAmountCents`: what lost payment disputes took back from the invoice's payments, 0 without one (Core 11.45.0).
+- `CreateCreditNoteParams.OutOfBandRefundAmountCents`, `OutOfBandRefundReference` and `OutOfBandRefundedAt` record the part of `RefundAmountCents` paid back outside any provider (Core 11.46.0). It is never sent to a provider and is settled at once. The SDK refuses a negative amount or one above `RefundAmountCents` before any request. `CreditNote` reads the same three fields.
+- The credit note refund codes `CodeManualRefundRequired`, `CodeProviderRefundUnsupported` and `CodeInsufficientRefundableAmount` for `APIError.HasCode` (Core 11.46.0). The first two mean the refund must be recorded out of band.
+- `AGENTS.md` testing safety rules for agents and scripts working in this repository.
+
 ## [0.38.0] - 2026-11-13
 
 ### Removed

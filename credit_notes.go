@@ -19,6 +19,12 @@ const (
 	CodeTotalAmountMustBePositive        = "total_amount_must_be_positive"
 	CodeNoVoidableAmount                 = "no_voidable_amount"
 	CodeRefundExceedsPaidAmount          = "refund_exceeds_paid_amount"
+	// On refund_amount_cents (Core 11.46.0). The first two point to OutOfBandRefundAmountCents:
+	// the online part needs a manual payment or the invoice was only marked paid, or its provider
+	// cannot refund through Nozle. The third: the invoice's provider payments hold less than the online part.
+	CodeManualRefundRequired         = "manual_refund_required"
+	CodeProviderRefundUnsupported    = "provider_refund_unsupported"
+	CodeInsufficientRefundableAmount = "insufficient_refundable_amount"
 )
 
 // CreditNoteReason says why a credit note is issued. Core defaults to CreditNoteReasonOther.
@@ -63,7 +69,12 @@ type CreditNote struct {
 	CreditAmountCents  int64   `json:"credit_amount_cents"`
 	RefundAmountCents  int64   `json:"refund_amount_cents"`
 	OffsetAmountCents  int64   `json:"offset_amount_cents"`
-	FileURL            *string `json:"file_url"`
+	// The part of RefundAmountCents paid back outside any provider (Core 11.46.0); OutOfBandRefundedAt is
+	// RFC 3339, nil like the reference when there is none.
+	OutOfBandRefundAmountCents int64   `json:"out_of_band_refund_amount_cents"`
+	OutOfBandRefundReference   *string `json:"out_of_band_refund_reference"`
+	OutOfBandRefundedAt        *string `json:"out_of_band_refunded_at"`
+	FileURL                    *string `json:"file_url"`
 }
 
 // CreditNotePreview is what a credit note would be worth. Nothing is created.
@@ -98,6 +109,12 @@ type CreateCreditNoteParams struct {
 	Items                                                   []CreditNoteItem
 	CreditAmountCents, RefundAmountCents, OffsetAmountCents int64
 	Reason                                                  CreditNoteReason
+	// OutOfBandRefundAmountCents is the part of RefundAmountCents you paid back yourself, for example by bank
+	// transfer (Core 11.46.0). It is never sent to a provider and is settled at once. Reference (up to 255
+	// characters) and RefundedAt (RFC 3339, Core uses now when empty) describe it.
+	OutOfBandRefundAmountCents int64
+	OutOfBandRefundReference   string
+	OutOfBandRefundedAt        string
 	// Description is printed on the credit note PDF.
 	Description string
 	// Metadata is your own key-value pairs, for example a ticket number.
@@ -145,6 +162,10 @@ type creditNoteBody struct {
 	Reason            CreditNoteReason  `json:"reason,omitempty"`
 	Description       string            `json:"description,omitempty"`
 	Metadata          map[string]string `json:"metadata,omitempty"`
+
+	OutOfBandRefundAmountCents int64  `json:"out_of_band_refund_amount_cents,omitempty"`
+	OutOfBandRefundReference   string `json:"out_of_band_refund_reference,omitempty"`
+	OutOfBandRefundedAt        string `json:"out_of_band_refunded_at,omitempty"`
 }
 
 // PreviewCreditNote returns what a credit note for these items would be worth, with taxes and coupons
@@ -180,10 +201,13 @@ func (c *Client) CreateCreditNote(ctx context.Context, p CreateCreditNoteParams)
 	if err != nil {
 		return out.CreditNote, err
 	}
-	for name, v := range map[string]int64{"credit_amount_cents": p.CreditAmountCents, "refund_amount_cents": p.RefundAmountCents, "offset_amount_cents": p.OffsetAmountCents} {
+	for name, v := range map[string]int64{"credit_amount_cents": p.CreditAmountCents, "refund_amount_cents": p.RefundAmountCents, "offset_amount_cents": p.OffsetAmountCents, "out_of_band_refund_amount_cents": p.OutOfBandRefundAmountCents} {
 		if v < 0 {
 			return out.CreditNote, &ValidationError{op, name + " must be 0 or more"}
 		}
+	}
+	if p.OutOfBandRefundAmountCents > p.RefundAmountCents {
+		return out.CreditNote, &ValidationError{op, "out_of_band_refund_amount_cents must not be more than refund_amount_cents"}
 	}
 	if p.CreditAmountCents+p.RefundAmountCents+p.OffsetAmountCents <= 0 {
 		return out.CreditNote, &ValidationError{op, "one of credit_amount_cents, refund_amount_cents or offset_amount_cents must be above zero"}
@@ -194,6 +218,8 @@ func (c *Client) CreateCreditNote(ctx context.Context, p CreateCreditNoteParams)
 	body := map[string]any{"credit_note": creditNoteBody{
 		InvoiceID: p.InvoiceID, Items: items, CreditAmountCents: p.CreditAmountCents, RefundAmountCents: p.RefundAmountCents,
 		OffsetAmountCents: p.OffsetAmountCents, Reason: p.Reason, Description: p.Description, Metadata: p.Metadata,
+		OutOfBandRefundAmountCents: p.OutOfBandRefundAmountCents, OutOfBandRefundReference: p.OutOfBandRefundReference,
+		OutOfBandRefundedAt: p.OutOfBandRefundedAt,
 	}}
 	err = c.request(ctx, op, http.MethodPost, true, "/api/v1/credit_notes", body, &out, "")
 	return out.CreditNote, err

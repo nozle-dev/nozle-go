@@ -541,6 +541,7 @@
       "credit_notes_amount_cents",
       "currency",
       "customer",
+      "disputed_amount_cents",
       "fees_amount_cents",
       "file_url",
       "invoice_type",
