@@ -131,38 +131,29 @@ func TestImportBillingStateErrors(t *testing.T) {
 	}
 }
 
-func TestMarginForecastAndSimulate(t *testing.T) {
-	c, seen := recorder(t, 200, `{"points":[{"date":"2026-10-28","projected_revenue":100,"projected_cost":40,"projected_margin":60}],"confidence":"low","metric_code":"m","new_revenue_cents":29500,"event_count":295}`)
+func TestMarginSimulate(t *testing.T) {
+	c, seen := recorder(t, 200, `{"metric_code":"m","new_revenue_cents":29500,"event_count":295}`)
 	q := url.Values{"from": {"2026-10-01"}}
-	forecast, err := c.MarginForecast(context.Background(), q)
-	if err != nil || forecast.Confidence != "low" || len(forecast.Points) != 1 || forecast.Points[0].ProjectedMargin != 60 {
-		t.Fatalf("forecast: %+v %v", forecast, err)
-	}
 	sim, err := c.MarginSimulate(context.Background(), nozle.MarginSimulateParams{MetricCode: "m", NewPriceDollars: 1.5}, q)
 	if err != nil || sim.NewRevenueCents != 29500 || sim.EventCount != 295 {
 		t.Fatalf("simulate: %+v %v", sim, err)
 	}
-	f, s := (*seen)[0], (*seen)[1]
-	if f.method != "GET" || f.path != "/engine/api/v1/margin/forecast" || f.query != "from=2026-10-01" {
-		t.Fatalf("forecast request: %+v", f)
-	}
+	s := (*seen)[0]
 	if s.method != "POST" || s.path != "/engine/api/v1/margin/simulate" || s.query != "from=2026-10-01" ||
 		!reflect.DeepEqual(s.body, map[string]any{"metric_code": "m", "new_price_dollars": 1.5}) {
 		t.Fatalf("simulate request: %+v", s)
 	}
 }
 
-func TestMarginForecastAndSimulateErrors(t *testing.T) {
+func TestMarginSimulateErrors(t *testing.T) {
 	c, seen := recorder(t, 400, `{"code":"invalid_date_range","error":"to must be after from"}`)
-	_, err := c.MarginForecast(context.Background(), nil)
-	apiError(t, err, 400, "invalid_date_range")
-	_, err = c.MarginSimulate(context.Background(), nozle.MarginSimulateParams{MetricCode: "m"}, nil)
+	_, err := c.MarginSimulate(context.Background(), nozle.MarginSimulateParams{MetricCode: "m"}, nil)
 	apiError(t, err, 400, "invalid_date_range")
 	_, err = c.MarginSimulate(context.Background(), nozle.MarginSimulateParams{MetricCode: "m", NewPriceDollars: -1}, nil)
 	validation(t, err, "new_price_dollars")
 	_, err = c.MarginSimulate(context.Background(), nozle.MarginSimulateParams{NewPriceDollars: 1}, nil)
 	validation(t, err, "metric_code")
-	if len(*seen) != 2 {
+	if len(*seen) != 1 {
 		t.Fatalf("invalid calls must not be sent: %d requests", len(*seen))
 	}
 }

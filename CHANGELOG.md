@@ -4,6 +4,12 @@ All notable changes to the nozle-go SDK will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.38.0] - 2026-11-13
+
+### Removed
+
+- **Breaking:** `Client.MarginForecast` with `MarginForecastResult` and `MarginForecastPoint`. Its route (`GET /api/v1/margin/forecast`) is absent from Engine and always returned HTTP 404.
+
 ## [0.37.0] - 2026-11-03
 
 Needs a Core with the agent payment token and x402 endpoints (NLD-14) and the `stripe_agent_payment_token` and `stripe_x402_payments` workspace flags.
