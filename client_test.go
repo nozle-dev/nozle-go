@@ -706,6 +706,31 @@ func TestEntitySubscriptionRequests_leaveOutUnsetOptionalFields(t *testing.T) {
 	}
 }
 
+func TestClient_PlansStatusFilterAndArchivedFields(t *testing.T) {
+	var queries []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		queries = append(queries, r.URL.RawQuery)
+		w.Write([]byte(`{"plans":[{"code":"old","name":"Old","amount_cents":900,"amount_currency":"USD","interval":"monthly",
+			"status":"archived","archived_at":"2026-11-17T09:00:00Z"}]}`))
+	}))
+	defer srv.Close()
+
+	c := nozle.New("sk_test-key", nozle.WithBaseURL(srv.URL))
+	plans, err := c.Plans(context.Background(), nozle.WithStatus("archived"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.Plans(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"status=archived", ""}; !reflect.DeepEqual(queries, want) {
+		t.Errorf("queries = %q, want %q", queries, want)
+	}
+	if len(plans) != 1 || plans[0].Status != "archived" || plans[0].ArchivedAt == nil || *plans[0].ArchivedAt != "2026-11-17T09:00:00Z" {
+		t.Errorf("plans = %+v", plans)
+	}
+}
+
 func TestClient_PlansCurrencyAndFamily(t *testing.T) {
 	var queries []string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

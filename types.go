@@ -84,6 +84,10 @@ type Plan struct {
 	// subscriptions get. Plans returns current versions only.
 	Version   int  `json:"version"`
 	IsCurrent bool `json:"is_current"`
+	// Status is "active" or "archived". An archived plan takes no new subscriptions; its existing subscriptions
+	// keep billing. ArchivedAt is when it was archived, nil while active. Older Cores leave Status empty (Core 11.51.0).
+	Status     string  `json:"status"`
+	ArchivedAt *string `json:"archived_at"`
 	// Family is the plan family this plan is a variant of; nil for a plan without a family.
 	Family *PlanFamilyRef `json:"family,omitempty"`
 	// Prices lists every current variant of the family: one price per interval and currency.

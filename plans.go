@@ -19,6 +19,12 @@ func WithExternalCustomerID(id string) PlansOption {
 	return func(q url.Values) { setNonEmpty(q, "external_customer_id", id) }
 }
 
+// WithStatus (secret key only) lists only "active" or only "archived" plans. Without it a secret key gets both, and a
+// publishable key never gets archived plans (Core 11.51.0).
+func WithStatus(status string) PlansOption {
+	return func(q url.Values) { setNonEmpty(q, "status", status) }
+}
+
 func setNonEmpty(q url.Values, key, value string) {
 	if value != "" {
 		q.Set(key, value)

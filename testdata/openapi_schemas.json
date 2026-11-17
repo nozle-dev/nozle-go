@@ -654,6 +654,7 @@
       "amount_cents",
       "amount_currency",
       "applicable_usage_thresholds",
+      "archived_at",
       "bill_charges_monthly",
       "bill_fixed_charges_monthly",
       "charges",
@@ -680,6 +681,7 @@
       "plan_family_code",
       "prices",
       "provider_tax_code",
+      "status",
       "taxes",
       "trial_period",
       "unpaid_invoice_grace_days",
@@ -689,6 +691,7 @@
     "required": [
       "amount_cents",
       "amount_currency",
+      "archived_at",
       "bill_charges_monthly",
       "bill_fixed_charges_monthly",
       "code",
@@ -701,6 +704,7 @@
       "parent_id",
       "pay_in_advance",
       "pending_deletion",
+      "status",
       "trial_period"
     ]
   },
