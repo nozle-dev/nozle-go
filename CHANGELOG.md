@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [0.42.0] - 2026-11-18
 
-Matches Core 11.55.0 (invoice usage cap). Older Cores leave the new fields empty.
+Matches Core 11.53.0 (invoice usage cap). Older Cores leave the new fields empty.
 
 ### Added
 

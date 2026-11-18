@@ -39,7 +39,7 @@ type CustomerUsage struct {
 	TotalAmountCents int64         `json:"total_amount_cents"`
 	ChargesUsage     []ChargeUsage `json:"charges_usage"`
 	// UsageCapAmountCents is the part of AmountCents past the invoice cap, which the invoice will not bill
-	// (Core 11.55.0, current usage only); 0 without a cap.
+	// (Core 11.53.0, current usage only); 0 without a cap.
 	UsageCapAmountCents int64 `json:"usage_cap_amount_cents"`
 }
 
