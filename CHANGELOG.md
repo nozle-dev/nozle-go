@@ -4,6 +4,15 @@ All notable changes to the nozle-go SDK will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.40.0] - 2026-11-17
+
+Matches Core 11.51.0 (archived plans). Older Cores leave the new fields empty.
+
+### Added
+
+- `Plan.Status` (`"active"` or `"archived"`) and `Plan.ArchivedAt`. An archived plan takes no new subscriptions; its existing subscriptions keep billing.
+- `WithStatus` for `Plans` lists only `"active"` or only `"archived"` plans with a secret key. Without it a secret key gets both. A publishable key never gets archived plans.
+
 ## [0.39.0] - 2026-11-14
 
 Matches Core 11.45.0 to 11.46.1 (lost disputes, out-of-band refunds). Older Cores leave the new fields at their zero value.
