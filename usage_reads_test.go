@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -28,7 +29,7 @@ func TestCurrentUsageUsesTheActiveSubscription(t *testing.T) {
 			if r.URL.Query().Get("external_subscription_id") != "sub_1" {
 				t.Errorf("query %s", r.URL.RawQuery)
 			}
-			_, _ = w.Write([]byte(`{"customer_usage":` + usagePeriod + `}`))
+			_, _ = w.Write([]byte(`{"customer_usage":` + strings.TrimSuffix(usagePeriod, "}") + `,"usage_cap_amount_cents":240}}`))
 		default:
 			t.Errorf("unexpected %s", r.URL.Path)
 		}
@@ -37,7 +38,8 @@ func TestCurrentUsageUsesTheActiveSubscription(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if usage.AmountCents != 1240 || usage.ChargesUsage[0].Feature.Code != "api_calls" || usage.ChargesUsage[0].Units != "31200.0" {
+	if usage.AmountCents != 1240 || usage.ChargesUsage[0].Feature.Code != "api_calls" || usage.ChargesUsage[0].Units != "31200.0" ||
+		usage.UsageCapAmountCents != 240 {
 		t.Fatalf("usage = %+v", usage)
 	}
 }
