@@ -176,6 +176,8 @@ func TestRequestBodiesFitTheAPISchemas(t *testing.T) {
 			_, _ = c.TrackCostEvent(ctx, nozle.CostEventParams{CostMeterCode: "llm_tokens", ExternalCustomerID: "cust"})
 		},
 		"UpsertCustomer": func() { _, _ = c.UpsertCustomer(ctx, nozle.Customer{ExternalID: "cust"}) },
+		"EraseCustomer":  func() { _, _ = c.EraseCustomer(ctx, "cust") },
+		"DeleteCustomer": func() { _, _ = c.DeleteCustomer(ctx, "cust") },
 		"UpsertCustomerWithTaxData": func() {
 			exempt := true
 			_, _ = c.UpsertCustomer(ctx, nozle.Customer{ExternalID: "cust", CustomerType: "company", LegalName: "Acme GmbH",

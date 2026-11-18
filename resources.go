@@ -55,6 +55,42 @@ func (c *Client) UpsertCustomer(ctx context.Context, p Customer) (Customer, erro
 	err := c.request(ctx, "customers.upsert", "POST", true, "/api/v1/customers", map[string]any{"customer": p}, &out, "")
 	return out.Customer, err
 }
+
+// Codes of a refused EraseCustomer: a 422 lists them in error_details.customer. Test them with APIError.HasCode.
+const (
+	CodeHasActiveSubscriptions = "has_active_subscriptions"
+	CodeHasDraftInvoices       = "has_draft_invoices"
+	CodeHasUnpaidInvoices      = "has_unpaid_invoices"
+)
+
+// EraseCustomer erases the customer's personal data (GDPR), irreversibly (POST /customers/:external_id/erase,
+// Core): Core sets ErasedAt and finishes in the background. It is refused with a 422 while the customer has active
+// subscriptions or draft or unpaid invoices (CodeHasActiveSubscriptions...). Erasing an erased customer changes
+// nothing. Secret key; not retried.
+func (c *Client) EraseCustomer(ctx context.Context, externalID string) (Customer, error) {
+	return c.customerWrite(ctx, "customers.erase", "POST", externalID, "/erase")
+}
+
+// DeleteCustomer deletes the customer and ends its subscriptions (DELETE /customers/:external_id, Core). It is not
+// an erasure: the customer's personal data stays; use EraseCustomer for that. Secret key; not retried.
+func (c *Client) DeleteCustomer(ctx context.Context, externalID string) (Customer, error) {
+	return c.customerWrite(ctx, "customers.delete", "DELETE", externalID, "")
+}
+
+func (c *Client) customerWrite(ctx context.Context, op, method, externalID, suffix string) (Customer, error) {
+	var out struct {
+		Customer Customer `json:"customer"`
+	}
+	if err := validateSecret(c, op); err != nil {
+		return out.Customer, err
+	}
+	if err := required(op, "external_id", externalID); err != nil {
+		return out.Customer, err
+	}
+	err := c.request(ctx, op, method, true, customerPath(externalID)+suffix, nil, &out, "")
+	return out.Customer, err
+}
+
 func (c *Client) GetEntity(ctx context.Context, customer, entity string) (Entity, error) {
 	var out struct {
 		Entity Entity `json:"entity"`
