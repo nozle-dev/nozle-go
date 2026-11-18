@@ -22,7 +22,10 @@ type Invoice struct {
 	TotalAmountCents int64   `json:"total_amount_cents"`
 	// DisputedAmountCents is what lost payment disputes took back from the invoice's payments (Core 11.45.0),
 	// 0 without a lost dispute.
-	DisputedAmountCents int64   `json:"disputed_amount_cents"`
+	DisputedAmountCents int64 `json:"disputed_amount_cents"`
+	// UsageCapAmountCents is the usage billed past the spend limit's invoice cap, taken back by a usage_cap credit
+	// (Core 11.53.0); 0 without a capped spend limit.
+	UsageCapAmountCents int64   `json:"usage_cap_amount_cents"`
 	FileURL             *string `json:"file_url"`
 	// From Cores with customer tax data. TaxStatus is "pending", "succeeded" or "failed"; TaxDetails is nil on
 	// invoices finalized before customer tax data existed.

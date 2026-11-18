@@ -4,6 +4,15 @@ All notable changes to the nozle-go SDK will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.42.0] - 2026-11-18
+
+Matches Core 11.53.0 (invoice usage cap). Older Cores leave the new fields empty.
+
+### Added
+
+- `Invoice.UsageCapAmountCents`, the usage billed past a spend limit's invoice cap and taken back by a `usage_cap` credit. 0 without a capped spend limit.
+- `CustomerUsage.UsageCapAmountCents` (`CurrentUsage`), the part of `AmountCents` past the invoice cap, which the invoice will not bill. `TotalAmountCents` and taxes are on the capped usage.
+
 ## [0.40.0] - 2026-11-17
 
 Matches Core 11.51.0 (archived plans). Older Cores leave the new fields empty.
