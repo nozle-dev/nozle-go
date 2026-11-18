@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [0.41.0] - 2026-11-18
 
-Matches Core 11.54.0 (customer erasure) and Engine 2.60.0. Older Cores leave the new fields empty.
+Matches Core 11.52.0 (customer erasure) and Engine 2.60.0. Older Cores leave the new fields empty.
 
 ### Added
 

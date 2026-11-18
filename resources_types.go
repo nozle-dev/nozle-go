@@ -24,7 +24,7 @@ type Customer struct {
 	TaxIdentificationStatus   TaxIDStatus
 	TaxTreatment              TaxTreatment
 	TaxIdentificationWarnings []string // non-blocking notes on a write, for example "country_mismatch"
-	ErasedAt                  string   // when EraseCustomer erased the personal data (RFC 3339); empty before (Core 11.54.0)
+	ErasedAt                  string   // when EraseCustomer erased the personal data (RFC 3339); empty before (Core 11.52.0)
 }
 
 // CustomerBillingConfiguration assigns a payment provider to a customer.
