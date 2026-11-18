@@ -304,6 +304,19 @@ if err != nil { return err }
 _ = group.Items
 ```
 
+### Deleting and erasing a customer
+
+`DeleteCustomer` deletes the customer and ends its subscriptions. It is not an erasure: the customer's personal data stays. `EraseCustomer` erases that personal data (GDPR), irreversibly, and returns the customer with `ErasedAt` set; Core finishes in the background and sends a `customer.erased` webhook. Erase refuses with 422 while the customer has active subscriptions or draft or unpaid invoices. Erasing an erased customer changes nothing. Neither call is retried automatically.
+
+```go
+customer, err := client.EraseCustomer(ctx, "customer-123")
+var apiErr *nozle.APIError
+if errors.As(err, &apiErr) && apiErr.HasCode(nozle.CodeHasUnpaidInvoices) {
+    // collect or void the open invoices first
+}
+_ = customer.ErasedAt // "2026-11-18T10:00:00Z"
+```
+
 ### Importing billing state and opening credit balances
 
 When you move customers from another billing system, import each subscription that system still bills (`ImportBillingState`, Core), then its current credit balance (`ImportCreditBalance`, Engine). Both need a secret key and an idempotency key (at most 255 bytes): retry an uncertain call with the same key and params. `DryRun: true` validates without writing. Failures return `*APIError`.

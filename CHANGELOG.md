@@ -4,6 +4,17 @@ All notable changes to the nozle-go SDK will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.41.0] - 2026-11-18
+
+Matches Core 11.54.0 (customer erasure) and Engine 2.60.0. Older Cores leave the new fields empty.
+
+### Added
+
+- `EraseCustomer(ctx, externalID)` (`POST /customers/{external_id}/erase`) erases a customer's personal data and returns the customer with `ErasedAt`. A 422 lists `CodeHasActiveSubscriptions`, `CodeHasDraftInvoices` or `CodeHasUnpaidInvoices` in `error_details.customer`. A repeat call changes nothing. Not retried automatically.
+- `DeleteCustomer(ctx, externalID)` (`DELETE /customers/{external_id}`) deletes a customer and ends its subscriptions. It is not an erasure. Not retried automatically.
+- `Customer.ErasedAt` (read-only, never sent).
+- `TrackUsage` and `FinalizeCreditHold` return Engine's 409 `period_invoiced` (usage dated in an invoiced period) as an `*APIError` that `HasCode(CodePeriodInvoiced)`, and never retry it.
+
 ## [0.40.0] - 2026-11-17
 
 Matches Core 11.51.0 (archived plans). Older Cores leave the new fields empty.
