@@ -217,10 +217,11 @@ type customerReadWire struct {
 	Status   TaxIDStatus  `json:"tax_identification_status,omitempty"`
 	Treat    TaxTreatment `json:"tax_treatment,omitempty"`
 	Warnings []string     `json:"tax_identification_warnings,omitempty"`
+	ErasedAt string       `json:"erased_at,omitempty"`
 }
 
 // MarshalJSON writes Core's flat request keys. The read-only fields (TaxIdentificationStatus, TaxTreatment,
-// TaxIdentificationWarnings) are never sent, so a decoded Customer can be sent back unchanged.
+// TaxIdentificationWarnings, ErasedAt) are never sent, so a decoded Customer can be sent back unchanged.
 func (c Customer) MarshalJSON() ([]byte, error) {
 	w := customerWire{ExternalID: c.ExternalID, Name: c.Name, Email: c.Email, CustomerType: c.CustomerType,
 		LegalName: c.LegalName, TaxExempt: c.TaxExempt, BillingConfiguration: c.BillingConfiguration}
@@ -254,7 +255,7 @@ func (c *Customer) UnmarshalJSON(data []byte) error {
 	}
 	out := Customer{ExternalID: w.ExternalID, Name: w.Name, Email: w.Email, CustomerType: w.CustomerType,
 		LegalName: w.LegalName, TaxExempt: w.TaxExempt, BillingConfiguration: w.BillingConfiguration,
-		TaxIdentificationStatus: w.Status, TaxTreatment: w.Treat, TaxIdentificationWarnings: w.Warnings}
+		TaxIdentificationStatus: w.Status, TaxTreatment: w.Treat, TaxIdentificationWarnings: w.Warnings, ErasedAt: w.ErasedAt}
 	if out.BillingConfiguration != nil && out.BillingConfiguration.PaymentProvider == "" {
 		out.BillingConfiguration = nil
 	}

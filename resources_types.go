@@ -7,7 +7,7 @@ type Decimal string
 
 // Customer is a customer as sent to UpsertCustomer and as Core returns it. Address, ShippingAddress and TaxID
 // are mapped to Core's flat keys (address_line1, zipcode, tax_identification_number, tax_identification_type...).
-// The last three fields are read-only: they come from Core and are never sent.
+// The last four fields are read-only: they come from Core and are never sent.
 type Customer struct {
 	ExternalID           string
 	Name                 string
@@ -24,6 +24,7 @@ type Customer struct {
 	TaxIdentificationStatus   TaxIDStatus
 	TaxTreatment              TaxTreatment
 	TaxIdentificationWarnings []string // non-blocking notes on a write, for example "country_mismatch"
+	ErasedAt                  string   // when EraseCustomer erased the personal data (RFC 3339); empty before (Core 11.52.0)
 }
 
 // CustomerBillingConfiguration assigns a payment provider to a customer.
