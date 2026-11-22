@@ -61,6 +61,8 @@ type Client struct {
 	subscriptions                    subscriptionCache
 	// Events holds the calls on recorded events, such as Events.Void.
 	Events *EventsService
+	// CustomerTokens holds the calls that mint and revoke customer tokens for the browser.
+	CustomerTokens *CustomerTokensService
 }
 
 // defaultTransport keeps a connection open for each TrackBatch request in flight (up to 64); Go's default keeps 2
@@ -80,6 +82,7 @@ func New(apiKey string, opts ...Option) *Client {
 	}
 	c := &Client{host: DefaultHost, maxRetries: 2, retryDelay: 500 * time.Millisecond, apiKey: apiKey, timeout: 10 * time.Second, httpClient: &http.Client{Transport: defaultTransport}}
 	c.Events = &EventsService{c}
+	c.CustomerTokens = &CustomerTokensService{c}
 	for _, o := range opts {
 		o(c)
 	}
@@ -237,7 +240,7 @@ var repeatableOps = map[string]bool{
 	"track": true, "meter": true, "track_batch": true, "cost_events.track": true, "customers.upsert": true,
 	"usage.check": true, "preview_subscription_transition": true, "preview_subscription_change": true,
 	"invoice_download_url": true, "preview_credit_note": true, "margin.simulate": true,
-	"billing_entities.update": true, "usage.finalize_hold": true, "usage.release_hold": true, "events.void": true,
+	"billing_entities.update": true, "usage.finalize_hold": true, "usage.release_hold": true, "events.void": true, "customer_tokens.create": true, "customer_tokens.revoke": true,
 	"cost_intelligence.preview_shared_cost_allocation": true, "cost_intelligence.allocate_shared_cost": true,
 }
 
