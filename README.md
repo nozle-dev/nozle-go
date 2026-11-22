@@ -317,6 +317,20 @@ if errors.As(err, &apiErr) && apiErr.HasCode(nozle.CodeHasUnpaidInvoices) {
 _ = customer.ErasedAt // "2026-11-18T10:00:00Z"
 ```
 
+### Customer tokens for the browser
+
+`CustomerTokens.Create(ctx, customerID, nozle.CustomerTokenOptions{TTLSeconds, Features})` mints a short-lived, read-only token for one customer (Core 11.59.0). The browser sends it as `X-Nozle-Customer-Token` with your publishable key and reads that customer's entitlements, usage, credit balances and subscription, nothing else. Take `customerID` from your session, never from the request. `TTLSeconds` is 60 to 3600 (zero means one hour; Nozle answers 422 outside that range); `Features` limits `can` and usage reads. Minting needs a secret key with `customer:read`. A token belongs to that customer record: deleting the customer ends its tokens. `CustomerTokens.Revoke(ctx)`, also with a secret key, refuses every token minted until now.
+
+```go
+func customerToken(w http.ResponseWriter, r *http.Request) {
+    session := sessionFrom(r)
+    token, err := client.CustomerTokens.Create(r.Context(), session.WorkspaceID, nozle.CustomerTokenOptions{TTLSeconds: 900})
+    if err != nil { http.Error(w, "unavailable", http.StatusBadGateway); return }
+    w.Header().Set("Cache-Control", "no-store")
+    _ = json.NewEncoder(w).Encode(token)
+}
+```
+
 ### Importing billing state and opening credit balances
 
 When you move customers from another billing system, import each subscription that system still bills (`ImportBillingState`, Core), then its current credit balance (`ImportCreditBalance`, Engine). Both need a secret key and an idempotency key (at most 255 bytes): retry an uncertain call with the same key and params. `DryRun: true` validates without writing. Failures return `*APIError`.

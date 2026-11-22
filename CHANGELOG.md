@@ -4,6 +4,15 @@ All notable changes to the nozle-go SDK will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.42.0] - 2026-11-22
+
+Matches Core 11.59.0 and Engine 2.64.0 (customer tokens). Needs Core 11.59.0.
+
+### Added
+
+- `CustomerTokens.Create(ctx, customerID, CustomerTokenOptions{TTLSeconds, Features})` (`POST /customer_tokens`, secret key with `customer:read`) mints a short-lived, read-only token that lets the signed-in customer's browser read that customer's entitlements, usage, credit balances and subscription with your publishable key. `TTLSeconds` is 60 to 3600 (zero means one hour; Core answers 422 outside it). `Features` limits `can` and usage reads. The token reads only what both the minting key and the publishable key may read, and stops working when its customer is deleted. Returns `*CustomerToken` (`Token`, `CustomerID`, `ExpiresAt`). Core answers 403 `publishable_key_not_allowed` to a publishable key and 404 to an unknown customer. Retried like a read, because a repeat only mints another token.
+- `CustomerTokens.Revoke(ctx)` (`POST /customer_tokens/revoke`, `customer:write`) refuses every token minted until now and returns `*CustomerTokenRevocation` (`RevokedAt`).
+
 ## [0.41.0] - 2026-11-18
 
 Matches Core 11.52.0 (customer erasure) and Engine 2.60.0. Older Cores leave the new fields empty.

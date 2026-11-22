@@ -177,7 +177,11 @@ func TestRequestBodiesFitTheAPISchemas(t *testing.T) {
 		},
 		"UpsertCustomer": func() { _, _ = c.UpsertCustomer(ctx, nozle.Customer{ExternalID: "cust"}) },
 		"EraseCustomer":  func() { _, _ = c.EraseCustomer(ctx, "cust") },
-		"DeleteCustomer": func() { _, _ = c.DeleteCustomer(ctx, "cust") },
+		"CreateCustomerToken": func() {
+			_, _ = c.CustomerTokens.Create(ctx, "cust", nozle.CustomerTokenOptions{TTLSeconds: 600, Features: []string{"seats"}})
+		},
+		"RevokeCustomerTokens": func() { _, _ = c.CustomerTokens.Revoke(ctx) },
+		"DeleteCustomer":       func() { _, _ = c.DeleteCustomer(ctx, "cust") },
 		"UpsertCustomerWithTaxData": func() {
 			exempt := true
 			_, _ = c.UpsertCustomer(ctx, nozle.Customer{ExternalID: "cust", CustomerType: "company", LegalName: "Acme GmbH",
